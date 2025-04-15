@@ -12,8 +12,8 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 load_dotenv()
 
 # Define a persistent directory for the vector DB
-PERSIST_DIRECTORY = "AIBooksVectorDB"
-DOCUMENTS_DIRECTORY  = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
+PERSIST_DIRECTORY = "BAAIAIBooksVectorDB"
+DOCUMENTS_DIRECTORY  = "AIdocuments"
 
 def create_vector_db():
     def load_pdfs_from_folder(folder_path):
@@ -31,11 +31,11 @@ def create_vector_db():
     text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size=500, chunk_overlap=100)
     doc_splits = text_splitter.split_documents(docs_list)
     
-    # Create embedding function
+    # # Create embedding function
     embedding_function = HuggingFaceEmbeddings(
         model_name="BAAI/bge-small-en"
     )
-    
+    # embedding_function = OpenAIEmbeddings()
     # Create and persist the vector store locally
     vectorstore = Chroma.from_documents(
         documents=doc_splits,

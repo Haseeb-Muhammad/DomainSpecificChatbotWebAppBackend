@@ -10,21 +10,26 @@ class Query(BaseModel):
     question: str
     numOfContext: int
 
+# Simple agent cache
+agent_cache = {
+    "agent": None,
+    "numOfContext": None,
+}
+
+def get_agent(numOfContext: int) -> RAGAgent:
+    # Reuse the agent if the context number hasn't changed
+    if agent_cache["agent"] is None or agent_cache["numOfContext"] != numOfContext:
+        print(f"Creating new agent with numOfContext={numOfContext}")
+        agent_cache["agent"] = RAGAgent(verbose=True, numOfContext=numOfContext)
+        agent_cache["numOfContext"] = numOfContext
+    return agent_cache["agent"]
+
 @app.post("/ask")
 def ask_rag(query: Query):
-    rag_agent = RAGAgent(verbose=True, numOfContext=query.numOfContext)
+    rag_agent = get_agent(query.numOfContext)
     try:
         response, context = rag_agent(query.question)
-        extracted_data = []
-        for entry in context:
-            doc = entry.get("doc", {})
-
-            extracted_data.append({
-                "book_title": os.path.basename(doc.metadata["source"]).split(".")[0],
-                "page_number": doc.metadata["page"],
-                "page_content": doc.page_content
-            })
-        return {"response": response, "context": extracted_data}
+        return {"response": response, "context": context}
     except Exception as e:
         return {"error": str(e)}
 
