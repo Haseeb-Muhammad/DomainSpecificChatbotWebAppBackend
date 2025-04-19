@@ -54,7 +54,7 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Directory for persisting the vector database
-PERSIST_DIRECTORY = "BAAIAIBooksVectorDB"
+PERSIST_DIRECTORY = "VectorDBs\\BAAIFunadamentalsOfDeepLearningEdition2VectorDB"
 finalContext = []
 
 class AgentState(TypedDict):
