@@ -103,7 +103,7 @@ class LoggingRetriever(BaseRetriever):
                 page = doc.metadata.get('page', 'unknown')
                 docs_with_metadata.append({"doc": doc, "source": source, "page": page})
 
-                print(f"Retrieved: {source} p.{page} - {doc.page_content[:50]}...")
+                # print(f"Retrieved: {source} p.{page} - {doc.page_content[:50]}...")
 
         global finalContext 
         finalContext = docs_with_metadata
@@ -252,6 +252,8 @@ class RAGAgent:
             if self.verbose:
                 print("---DECISION: DOCS NOT RELEVANT---")
             self.context_failure +=1
+            if self.context_failure >=2:
+                return "generate"
             return "rewrite"
 
     def _rewrite(self, state):
@@ -297,6 +299,10 @@ class RAGAgent:
         """
         if self.verbose:
             print("---GENERATE---")
+        
+        if self.context_failure >=2:
+            # return {"messages": [AIMessage(content="This question is out of my scope.")]}
+            return {"messages": ["This question is out of my scope."]}
 
         question = state["messages"][0].content
         docs = state["messages"][-1].content
@@ -331,6 +337,7 @@ class RAGAgent:
         }
 
         result = None
+        self.context_failure = 0
 
         for output in self.graph.stream(inputs):
             for key, value in output.items():
@@ -354,6 +361,6 @@ class RAGAgent:
 # Example usage
 if __name__ == "__main__":
     rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("What is a perceptron?")
+    response, context = rag_agent("What is Strong AI?")
     print("\nFinal Response:\n", response)
     print("Final Context:", context)
