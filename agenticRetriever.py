@@ -35,13 +35,13 @@ from typing_extensions import TypedDict
 
 # LangChain components
 from langchain import hub
-from langchain_community.vectorstores import Chroma
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_chroma import Chroma
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolCall
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.retrievers import BaseRetriever
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.tools.retriever import create_retriever_tool
 
 # LangGraph components
@@ -92,7 +92,6 @@ class LoggingRetriever(BaseRetriever):
         docs = self.base_retriever._get_relevant_documents(query, run_manager=run_manager)
         unique_docs = []
         docs_with_metadata = []
-
         for doc in docs:
             # Create a unique hash using content and metadata
             doc_hash = hash(f"{doc.page_content}-{doc.metadata}")
@@ -129,6 +128,7 @@ class RAGAgent:
         self.client = OpenAI()
         self.numOfContext = numOfContext
         self.context = []
+        self.context_failure = 0 
 
         self._load_vector_db()
         self._setup_retriever()
@@ -176,22 +176,12 @@ class RAGAgent:
         workflow = StateGraph(AgentState)
 
         # Define nodes
-        workflow.add_node("agent", self._agent)
-        workflow.add_node("retrieve", ToolNode([self.retriever_tool]))
-        workflow.add_node("rewrite", self._rewrite)
+        workflow.add_node("retrieve", self._retrieve)
         workflow.add_node("generate", self._generate)
+        workflow.add_node("rewrite", self._rewrite)
 
         # Define edges
-        workflow.add_edge(START, "agent")
-
-        workflow.add_conditional_edges(
-            "agent",
-            tools_condition,
-            {
-                "tools": "retrieve",
-                END: END,
-            }
-        )
+        workflow.add_edge(START, "retrieve")
 
         workflow.add_conditional_edges(
             "retrieve",
@@ -203,28 +193,16 @@ class RAGAgent:
         )
 
         workflow.add_edge("generate", END)
-        workflow.add_edge("rewrite", "agent")
+        workflow.add_edge("rewrite", "retrieve")
 
         self.graph = workflow.compile()
 
-    def _agent(self, state):
-        """
-        Agent node that decides whether to answer directly or use a tool.
+    def _retrieve(self, state):
+        query = state["messages"][0].content
+        docs = self.logging_retriever.get_relevant_documents(query)
+        combined_text = "\n\n".join(doc.page_content for doc in docs)
+        return {"messages": [AIMessage(content=combined_text)]}
 
-        Args:
-            state: Current agent state
-
-        Returns:
-            Updated message list with agent decision
-        """
-        if self.verbose:
-            print("---CALL AGENT---")
-
-        messages = state["messages"]
-        model = ChatOpenAI(temperature=0, streaming=True, model="gpt-4-turbo").bind_tools(self.tools)
-        response = model.invoke(messages)
-
-        return {"messages": [response]}
 
     def _grade_documents(self, state) -> Literal["generate", "rewrite"]:
         """
@@ -273,6 +251,7 @@ class RAGAgent:
         else:
             if self.verbose:
                 print("---DECISION: DOCS NOT RELEVANT---")
+            self.context_failure +=1
             return "rewrite"
 
     def _rewrite(self, state):
@@ -352,7 +331,6 @@ class RAGAgent:
         }
 
         result = None
-        lastAgent = None
 
         for output in self.graph.stream(inputs):
             for key, value in output.items():
@@ -360,10 +338,6 @@ class RAGAgent:
                 print(value)
                 print("---\n")
                 result = value
-                lastAgent = key
-
-        if lastAgent == "agent":
-            return result["messages"][0].content, []
 
         extracted_data = []
         for entry in self.context:
@@ -380,6 +354,6 @@ class RAGAgent:
 # Example usage
 if __name__ == "__main__":
     rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("What is strong AI?")
+    response, context = rag_agent("What is a perceptron?")
     print("\nFinal Response:\n", response)
     print("Final Context:", context)
