@@ -157,7 +157,7 @@ class RAGAgent:
             search_kwargs={
                 "k": self.numOfContext,
                 "fetch_k": 20,
-                "lambda_mult": 0.5
+                "lambda_mult": 0.9
             }
         )
 
