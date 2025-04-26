@@ -48,6 +48,8 @@ from langchain.tools.retriever import create_retriever_tool
 from langgraph.graph import END, StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
+from DeepSeekLocal import OllamaChat
+from langchain_ollama import ChatOllama
 
 # Load environment variables from .env file
 load_dotenv()
@@ -125,7 +127,7 @@ class RAGAgent:
             numOfContext: Number of documents to retrieve for context
         """
         self.verbose = verbose
-        self.client = OpenAI()
+        # self.client = OpenAI()
         self.numOfContext = numOfContext
         self.context = []
         self.context_failure = 0 
@@ -220,7 +222,11 @@ class RAGAgent:
         class Grade(BaseModel):
             binary_score: str = Field(description="Relevance score 'yes' or 'no'")
 
-        model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
+        # model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
+        model = ChatOllama(
+            model="deepseek-r1:1.5b",
+            temperature=0
+        )
         llm_with_tool = model.with_structured_output(Grade)
 
         prompt = PromptTemplate(
@@ -240,6 +246,7 @@ class RAGAgent:
         docs = last_message.content
 
         scored_result = chain.invoke({"question": question, "context": docs})
+        print(f"Scored Result: {scored_result}")
         score = scored_result.binary_score
 
         if score == "yes":
@@ -282,7 +289,12 @@ class RAGAgent:
             )
         ]
 
-        model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
+        # model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
+        # model = OllamaChat()
+        model = ChatOllama(
+            model="deepseek-r1:1.5b",
+            temperature=0
+        )
         response = model.invoke(msg)
 
         return {"messages": [response]}
@@ -308,7 +320,12 @@ class RAGAgent:
         docs = state["messages"][-1].content
 
         prompt = hub.pull("rlm/rag-prompt")
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, streaming=True)
+        # llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, streaming=True)
+        # llm = OllamaChat()
+        llm = ChatOllama(
+            model="deepseek-r1:1.5b",
+            temperature=0)
+        # llm.streaming = True
 
         formatted_prompt = prompt.format(context=docs, question=question)
 
