@@ -50,7 +50,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from DeepSeekLocal import OllamaChat
 from langchain_ollama import ChatOllama
-
+import re
 # Load environment variables from .env file
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -222,11 +222,11 @@ class RAGAgent:
         class Grade(BaseModel):
             binary_score: str = Field(description="Relevance score 'yes' or 'no'")
 
-        # model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
-        model = ChatOllama(
-            model="deepseek-r1:1.5b",
-            temperature=0
-        )
+        model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
+        # model = ChatOllama(
+        #     model="deepseek-r1:1.5b",
+        #     temperature=0
+        # )
         llm_with_tool = model.with_structured_output(Grade)
 
         prompt = PromptTemplate(
@@ -277,11 +277,13 @@ class RAGAgent:
             print("---TRANSFORM QUERY---")
 
         question = state["messages"][0].content
+        #Look at the input and try to reason about the underlying semantic intent / meaning. \n
         msg = [
             HumanMessage(
-                content=f""" \n 
-        Look at the input and try to reason about the underlying semantic intent / meaning. \n 
-        Here is the initial question:
+                content=f""" \n  
+        #Look at the input and try to reason about the underlying semantic intent / meaning. \n
+        Do not answer the question. Only output an imporved question.\n
+        Here is the initial question. :
         \n ------- \n
         {question} 
         \n ------- \n
@@ -290,12 +292,13 @@ class RAGAgent:
         ]
 
         # model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
-        # model = OllamaChat()
         model = ChatOllama(
             model="deepseek-r1:1.5b",
             temperature=0
         )
         response = model.invoke(msg)
+        response.content = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
+
 
         return {"messages": [response]}
 
@@ -335,6 +338,8 @@ class RAGAgent:
         rag_chain = prompt | llm | StrOutputParser()
         response = rag_chain.invoke({"context": docs, "question": question})
 
+        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        
         return {"messages": [response]}
 
     def __call__(self, query: str) -> str:
