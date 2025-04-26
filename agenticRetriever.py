@@ -48,7 +48,6 @@ from langchain.tools.retriever import create_retriever_tool
 from langgraph.graph import END, StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from DeepSeekLocal import OllamaChat
 from langchain_ollama import ChatOllama
 import re
 # Load environment variables from .env file
@@ -222,11 +221,11 @@ class RAGAgent:
         class Grade(BaseModel):
             binary_score: str = Field(description="Relevance score 'yes' or 'no'")
 
-        model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
-        # model = ChatOllama(
-        #     model="deepseek-r1:1.5b",
-        #     temperature=0
-        # )
+        # model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
+        model = ChatOllama(
+            model="qwen2.5:3b",
+            temperature=1
+        )
         llm_with_tool = model.with_structured_output(Grade)
 
         prompt = PromptTemplate(
@@ -293,7 +292,7 @@ class RAGAgent:
 
         # model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
         model = ChatOllama(
-            model="deepseek-r1:1.5b",
+            model="qwen2.5:3b",
             temperature=0
         )
         response = model.invoke(msg)
@@ -326,7 +325,7 @@ class RAGAgent:
         # llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, streaming=True)
         # llm = OllamaChat()
         llm = ChatOllama(
-            model="deepseek-r1:1.5b",
+            model="qwen2.5:3b",
             temperature=0)
         # llm.streaming = True
 
@@ -383,6 +382,6 @@ class RAGAgent:
 # Example usage
 if __name__ == "__main__":
     rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("What is Strong AI?")
+    response, context = rag_agent("How is feature importance evaluated?")
     print("\nFinal Response:\n", response)
     print("Final Context:", context)
