@@ -12,8 +12,8 @@ from langchain_huggingface import HuggingFaceEmbeddings
 load_dotenv()
 
 # Define a persistent directory for the vector DB
-PERSIST_DIRECTORY = "VectorDBs\\BAAIAIBooksVectorDB"
-DOCUMENTS_DIRECTORY  = "books"
+PERSIST_DIRECTORY = "VectorDBs\\BAAIbgeLargeEn3BooksVectorDB"
+DOCUMENTS_DIRECTORY  = "3books"
 
 def create_vector_db():
     def load_pdfs_from_folder(folder_path):
@@ -31,13 +31,13 @@ def create_vector_db():
     
     docs = load_pdfs_from_folder(DOCUMENTS_DIRECTORY)
     docs_list = [item for sublist in docs for item in sublist]
-    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size=500, chunk_overlap=100)
+    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size=1500, chunk_overlap=200)
     doc_splits = text_splitter.split_documents(docs_list)
 
     
     # # Create embedding function
     embedding_function = HuggingFaceEmbeddings(
-        model_name="BAAI/bge-small-en"
+        model_name="BAAI/bge-large-en"
     )
     # embedding_function = OpenAIEmbeddings()
     # Create and persist the vector store locally

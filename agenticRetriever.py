@@ -55,7 +55,7 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Directory for persisting the vector database
-PERSIST_DIRECTORY = "VectorDBs\\BAAIFunadamentalsOfDeepLearningEdition2VectorDB"
+PERSIST_DIRECTORY = "VectorDBs\\BAAIbgeLargeEn3BooksVectorDB"
 finalContext = []
 
 class AgentState(TypedDict):
@@ -140,7 +140,7 @@ class RAGAgent:
         if self.verbose:
             print(f"Loading vector database from {PERSIST_DIRECTORY}")
         
-        embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en")
+        embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en")
 
         self.vectorstore = Chroma(
             collection_name="rag-chroma",
@@ -158,7 +158,7 @@ class RAGAgent:
             search_kwargs={
                 "k": self.numOfContext,
                 "fetch_k": 20,
-                "lambda_mult": 0.9
+                "lambda_mult": 1
             }
         )
 
@@ -316,6 +316,7 @@ class RAGAgent:
         
         if self.context_failure >=2:
             # return {"messages": [AIMessage(content="This question is out of my scope.")]}
+            self.context = []
             return {"messages": ["This question is out of my scope."]}
 
         question = state["messages"][0].content
@@ -382,6 +383,6 @@ class RAGAgent:
 # Example usage
 if __name__ == "__main__":
     rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("How is feature importance evaluated?")
+    response, context = rag_agent("What is Strong AI?")
     print("\nFinal Response:\n", response)
     print("Final Context:", context)

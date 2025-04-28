@@ -3,7 +3,16 @@ from pydantic import BaseModel
 from agenticRetriever import RAGAgent
 import uvicorn
 import os
+from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Updated model to accept two inputs
 class Query(BaseModel):
@@ -35,6 +44,13 @@ def ask_rag(query: Query):
         return {"response": response, "context": context}
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.get("/")
+def helloworld():
+    return {
+        "message" : "working"
+    }
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
