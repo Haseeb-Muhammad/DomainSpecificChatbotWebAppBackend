@@ -48,13 +48,14 @@ from langchain.tools.retriever import create_retriever_tool
 from langgraph.graph import END, StateGraph, START
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-
+from langchain_ollama import ChatOllama
+import re
 # Load environment variables from .env file
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Directory for persisting the vector database
-PERSIST_DIRECTORY = "VectorDBs\\BAAIFunadamentalsOfDeepLearningEdition2VectorDB"
+PERSIST_DIRECTORY = "VectorDBs\\BAAIbgeLargeEn3BooksVectorDB"
 finalContext = []
 
 class AgentState(TypedDict):
@@ -125,7 +126,7 @@ class RAGAgent:
             numOfContext: Number of documents to retrieve for context
         """
         self.verbose = verbose
-        self.client = OpenAI()
+        # self.client = OpenAI()
         self.numOfContext = numOfContext
         self.context = []
         self.context_failure = 0 
@@ -139,7 +140,7 @@ class RAGAgent:
         if self.verbose:
             print(f"Loading vector database from {PERSIST_DIRECTORY}")
         
-        embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en")
+        embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en")
 
         self.vectorstore = Chroma(
             collection_name="rag-chroma",
@@ -157,7 +158,7 @@ class RAGAgent:
             search_kwargs={
                 "k": self.numOfContext,
                 "fetch_k": 20,
-                "lambda_mult": 0.9
+                "lambda_mult": 1
             }
         )
 
@@ -220,7 +221,11 @@ class RAGAgent:
         class Grade(BaseModel):
             binary_score: str = Field(description="Relevance score 'yes' or 'no'")
 
-        model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
+        # model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
+        model = ChatOllama(
+            model="qwen2.5:3b",
+            temperature=1
+        )
         llm_with_tool = model.with_structured_output(Grade)
 
         prompt = PromptTemplate(
@@ -240,6 +245,7 @@ class RAGAgent:
         docs = last_message.content
 
         scored_result = chain.invoke({"question": question, "context": docs})
+        print(f"Scored Result: {scored_result}")
         score = scored_result.binary_score
 
         if score == "yes":
@@ -270,11 +276,13 @@ class RAGAgent:
             print("---TRANSFORM QUERY---")
 
         question = state["messages"][0].content
+        #Look at the input and try to reason about the underlying semantic intent / meaning. \n
         msg = [
             HumanMessage(
-                content=f""" \n 
-        Look at the input and try to reason about the underlying semantic intent / meaning. \n 
-        Here is the initial question:
+                content=f""" \n  
+        #Look at the input and try to reason about the underlying semantic intent / meaning. \n
+        Do not answer the question. Only output an imporved question.\n
+        Here is the initial question. :
         \n ------- \n
         {question} 
         \n ------- \n
@@ -282,8 +290,14 @@ class RAGAgent:
             )
         ]
 
-        model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
+        # model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
+        model = ChatOllama(
+            model="qwen2.5:3b",
+            temperature=0
+        )
         response = model.invoke(msg)
+        response.content = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
+
 
         return {"messages": [response]}
 
@@ -302,13 +316,19 @@ class RAGAgent:
         
         if self.context_failure >=2:
             # return {"messages": [AIMessage(content="This question is out of my scope.")]}
+            self.context = []
             return {"messages": ["This question is out of my scope."]}
 
         question = state["messages"][0].content
         docs = state["messages"][-1].content
 
         prompt = hub.pull("rlm/rag-prompt")
-        llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, streaming=True)
+        # llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, streaming=True)
+        # llm = OllamaChat()
+        llm = ChatOllama(
+            model="qwen2.5:3b",
+            temperature=0)
+        # llm.streaming = True
 
         formatted_prompt = prompt.format(context=docs, question=question)
 
@@ -318,6 +338,8 @@ class RAGAgent:
         rag_chain = prompt | llm | StrOutputParser()
         response = rag_chain.invoke({"context": docs, "question": question})
 
+        response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+        
         return {"messages": [response]}
 
     def __call__(self, query: str) -> str:
