@@ -58,6 +58,13 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 PERSIST_DIRECTORY = "VectorDBs\\BAAIbgeLargeEn3BooksVectorDB"
 finalContext = []
 
+MODEL_NAMES = {
+    "grade_documents" : "qwen2.5:14b",
+    "rewrite" : "qwen2.5:14b",
+    "generate" : "qwen2.5:14b",
+
+}
+
 class AgentState(TypedDict):
     """
     Type definition for the agent's state.
@@ -223,7 +230,7 @@ class RAGAgent:
 
         # model = ChatOpenAI(temperature=0, model="gpt-4o", streaming=True)
         model = ChatOllama(
-            model="qwen2.5:3b",
+            model=MODEL_NAMES["grade_documents"],
             temperature=1
         )
         llm_with_tool = model.with_structured_output(Grade)
@@ -292,7 +299,7 @@ class RAGAgent:
 
         # model = ChatOpenAI(temperature=0, model="gpt-4-0125-preview", streaming=True)
         model = ChatOllama(
-            model="qwen2.5:3b",
+            model=MODEL_NAMES["rewrite"],
             temperature=0
         )
         response = model.invoke(msg)
@@ -326,7 +333,7 @@ class RAGAgent:
         # llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0, streaming=True)
         # llm = OllamaChat()
         llm = ChatOllama(
-            model="qwen2.5:3b",
+            model=MODEL_NAMES["generate"],
             temperature=0)
         # llm.streaming = True
 
@@ -383,6 +390,6 @@ class RAGAgent:
 # Example usage
 if __name__ == "__main__":
     rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("What is Strong AI?")
+    response, context = rag_agent("How is feature importance evaluated?")
     print("\nFinal Response:\n", response)
     print("Final Context:", context)
