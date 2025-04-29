@@ -288,7 +288,8 @@ class RAGAgent:
             HumanMessage(
                 content=f""" \n  
         #Look at the input and try to reason about the underlying semantic intent / meaning. \n
-        Do not answer the question. Only output an imporved question.\n
+        Do not answer the question. Only output an imporved question and pick the keywords from it.\n
+        Output Format: (keywords: keyword1, keyword2, ...) new question
         Here is the initial question. :
         \n ------- \n
         {question} 

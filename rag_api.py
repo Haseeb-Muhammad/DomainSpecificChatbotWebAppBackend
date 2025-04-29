@@ -4,7 +4,25 @@ from agenticRetriever import RAGAgent
 import uvicorn
 import os
 from fastapi.middleware.cors import CORSMiddleware
-app = FastAPI()
+import argparse
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    agent_cache = {
+        "agent": RAGAgent(verbose=True, numOfContext=3),
+        "numOfContext": 3,
+    }
+    app.agent_cache = agent_cache
+
+    yield
+
+    print("Closing the model")
+    del agent_cache
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,26 +32,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+
 # Updated model to accept two inputs
 class Query(BaseModel):
     question: str
     numOfContext: int
 
-# Simple agent cache
-agent_cache = {
-    "agent": RAGAgent(verbose=True, numOfContext=3),
-    "numOfContext": 3,
-}
+
 
 def get_agent(numOfContext: int) -> RAGAgent:
     # Reuse the agent if the context number hasn't changed
-    if agent_cache["numOfContext"] != numOfContext:
+    if app.agent_cache["numOfContext"] != numOfContext:
         print(f"Changing Number of Context to ={numOfContext}")
-        agent_cache["agent"].numOfContext = numOfContext
-        agent_cache["agent"]._setup_retriever()
-        agent_cache["numOfContext"] = numOfContext
+        app.agent_cache["agent"].numOfContext = numOfContext
+        app.agent_cache["agent"]._setup_retriever()
+        app.agent_cache["numOfContext"] = numOfContext
 
-    return agent_cache["agent"]
+    return app.agent_cache["agent"]
 
 
 @app.post("/ask")
@@ -53,4 +69,13 @@ def helloworld():
     }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("reload", default=False, nargs="?")
+
+    args = parser.parse_args()
+
+    if args.reload:
+        uvicorn.run("rag_api:app", host="0.0.0.0", port=8000, reload=True)
+    else:
+        uvicorn.run("rag_api:app", host="0.0.0.0", port=8000, workers=2)
+
