@@ -59,9 +59,9 @@ PERSIST_DIRECTORY = "VectorDBs\\BAAIbgeLargeEn3BooksVectorDB"
 finalContext = []
 
 MODEL_NAMES = {
-    "grade_documents" : "qwen2.5:14b",
-    "rewrite" : "qwen2.5:14b",
-    "generate" : "qwen2.5:14b",
+    "grade_documents" : "qwen2.5:3b",
+    "rewrite" : "qwen2.5:3b",
+    "generate" : "qwen2.5:3b",
 
 }
 

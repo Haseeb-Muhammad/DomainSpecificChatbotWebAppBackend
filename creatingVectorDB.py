@@ -14,9 +14,12 @@ load_dotenv()
 # Define a persistent directory for the vector DB
 PERSIST_DIRECTORY = "VectorDBs\\BAAIbgeLargeEn3BooksVectorDB"
 DOCUMENTS_DIRECTORY  = "3books"
+NEW_DOCUMENTS_DIRECTORY = "new_documents"
+CHUNK_SIZE = 1500
+CHUNK_OVERLAP = 200
+EMBEDDING_MODEL="BAAI/bge-large-en"
 
-def create_vector_db():
-    def load_pdfs_from_folder(folder_path):
+def load_pdfs_from_folder(folder_path):
         documents = []
         for file in os.listdir(folder_path):
             pdf_path = os.path.join(folder_path, file)
@@ -28,16 +31,36 @@ def create_vector_db():
                 print(f"Failed to load {pdf_path}: {e}")
             print(f"{pdf_path=}")
         return documents
+
+
+def add_documents():
+    docs = load_pdfs_from_folder(NEW_DOCUMENTS_DIRECTORY)
+    docs_list = [item for sublist in docs for item in sublist]
+    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size = CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+    doc_splits = text_splitter.split_documents(docs_list)
+    doc_splits = [doc for doc in doc_splits if isinstance(doc.page_content,str)]
+
+    embedding_function = HuggingFaceEmbeddings(
+        model_name = EMBEDDING_MODEL
+    )
+    vectorstore = Chroma(
+        embedding_function = embedding_function,
+        persist_directory=PERSIST_DIRECTORY
+    )
+    vectorstore.add_documents(documents=doc_splits)
+    vectorstore.persist()
+    print("New documents Added")
+
+def create_vector_db():
     
     docs = load_pdfs_from_folder(DOCUMENTS_DIRECTORY)
     docs_list = [item for sublist in docs for item in sublist]
-    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size=1500, chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
     doc_splits = text_splitter.split_documents(docs_list)
 
     
-    # # Create embedding function
     embedding_function = HuggingFaceEmbeddings(
-        model_name="BAAI/bge-large-en"
+        model_name=EMBEDDING_MODEL,
     )
     # embedding_function = OpenAIEmbeddings()
     # Create and persist the vector store locally
@@ -62,4 +85,4 @@ def create_vector_db():
 
 if __name__ == "__main__":
     # First run: Create and store the vector DB
-    vectorstore = create_vector_db()
+    add_documents()
