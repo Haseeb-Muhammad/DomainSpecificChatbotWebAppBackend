@@ -12,13 +12,16 @@ from langchain_huggingface import HuggingFaceEmbeddings
 load_dotenv()
 
 # Define a persistent directory for the vector DB
-PERSIST_DIRECTORY = "VectorDBs\\BAAIbgeLargeEn3BooksVectorDB"
-DOCUMENTS_DIRECTORY  = "3books"
+DOCUMENTS_DIRECTORY  = "/home/haseeb/Desktop/NCAI/Datasets/AI_books"
+MODEL_NAME = "BAAI/bge-small-en"
+COLLECTION_NAME = "rag-chroma"
+PERSIST_DIRECTORY = F"VectorDBs\{os.path.basename(MODEL_NAME)}_{os.path.basename(DOCUMENTS_DIRECTORY)}"
+print("PERSIST_DIRECTORY:", PERSIST_DIRECTORY)
 
 def create_vector_db():
     def load_pdfs_from_folder(folder_path):
         documents = []
-        for file in os.listdir(folder_path):
+        for file in os.listdir(folder_path)[:2]:
             pdf_path = os.path.join(folder_path, file)
             try:
                 loader = PyPDFLoader(pdf_path)
@@ -37,7 +40,7 @@ def create_vector_db():
     
     # # Create embedding function
     embedding_function = HuggingFaceEmbeddings(
-        model_name="BAAI/bge-large-en"
+        model_name=MODEL_NAME
     )
     # embedding_function = OpenAIEmbeddings()
     # Create and persist the vector store locally
@@ -49,7 +52,7 @@ def create_vector_db():
             print(f"[Invalid] Index: {i}, Type: {type(doc.page_content)}, Content: {repr(doc.page_content)[:200]}")
     vectorstore = Chroma.from_documents(
         documents=doc_splits,
-        collection_name="rag-chroma",
+        collection_name=COLLECTION_NAME,
         embedding=embedding_function,
         persist_directory=PERSIST_DIRECTORY  # This stores the DB locally
     )
