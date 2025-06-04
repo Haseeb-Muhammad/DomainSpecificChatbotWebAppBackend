@@ -47,7 +47,6 @@ from langchain.tools.retriever import create_retriever_tool
 # LangGraph components
 from langgraph.graph import END, StateGraph, START
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_ollama import ChatOllama
 import re
 # Load environment variables from .env file
@@ -55,13 +54,13 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Directory for persisting the vector database
-PERSIST_DIRECTORY = "VectorDBs\\BAAIbgeLargeEn3BooksVectorDB"
+PERSIST_DIRECTORY = "VectorDBs/bge-small-en_AI_books"
 finalContext = []
 
 MODEL_NAMES = {
-    "grade_documents" : "qwen2.5:14b",
-    "rewrite" : "qwen2.5:14b",
-    "generate" : "qwen2.5:14b",
+    "grade_documents" : "llama3.2:1b",
+    "rewrite" : "llama3.2:1b",
+    "generate" : "llama3.2:1b",
 
 }
 
@@ -103,7 +102,9 @@ class LoggingRetriever(BaseRetriever):
         for doc in docs:
             # Create a unique hash using content and metadata
             doc_hash = hash(f"{doc.page_content}-{doc.metadata}")
+            print("Document Hash:", doc_hash)
             if doc_hash not in self.seen_hashes:
+                print("Document is unique, adding to the list.")
                 self.seen_hashes.add(doc_hash)
                 unique_docs.append(doc)
 
@@ -111,7 +112,7 @@ class LoggingRetriever(BaseRetriever):
                 page = doc.metadata.get('page', 'unknown')
                 docs_with_metadata.append({"doc": doc, "source": source, "page": page})
 
-                # print(f"Retrieved: {source} p.{page} - {doc.page_content[:50]}...")
+                print(f"Retrieved: {source} p.{page} - \n{doc.page_content=}")
 
         global finalContext 
         finalContext = docs_with_metadata
@@ -137,6 +138,7 @@ class RAGAgent:
         self.numOfContext = numOfContext
         self.context = []
         self.context_failure = 0 
+        self.embeddingModel = "BAAI/bge-small-en"
 
         self._load_vector_db()
         self._setup_retriever()
@@ -147,7 +149,7 @@ class RAGAgent:
         if self.verbose:
             print(f"Loading vector database from {PERSIST_DIRECTORY}")
         
-        embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en")
+        embedding_function = HuggingFaceEmbeddings(model_name=self.embeddingModel)
 
         self.vectorstore = Chroma(
             collection_name="rag-chroma",
@@ -165,19 +167,19 @@ class RAGAgent:
             search_kwargs={
                 "k": self.numOfContext,
                 "fetch_k": 20,
-                "lambda_mult": 1
+                "lambda_mult": 0
             }
         )
 
         self.logging_retriever = LoggingRetriever(base_retriever=retriever)
 
-        self.retriever_tool = create_retriever_tool(
-            self.logging_retriever,
-            "retrieve_relevant_section",
-            "Search and return information from the documents"
-        )
+        # self.retriever_tool = create_retriever_tool(
+        #     self.logging_retriever,
+        #     "retrieve_relevant_section",
+        #     "Search and return information from the documents"
+        # )
 
-        self.tools = [self.retriever_tool]
+        # self.tools = [self.retriever_tool]
 
     def _build_workflow(self):
         """Build the LangGraph workflow for query handling."""
@@ -207,7 +209,7 @@ class RAGAgent:
 
     def _retrieve(self, state):
         query = state["messages"][0].content
-        docs = self.logging_retriever.get_relevant_documents(query)
+        docs = self.logging_retriever._get_relevant_documents(query)
         combined_text = "\n\n".join(doc.page_content for doc in docs)
         return {"messages": [AIMessage(content=combined_text)]}
 
@@ -346,6 +348,9 @@ class RAGAgent:
         response = rag_chain.invoke({"context": docs, "question": question})
 
         response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL).strip()
+
+        #Empty seen hashes
+        self.logging_retriever.seen_hashes.clear()
         
         return {"messages": [response]}
 

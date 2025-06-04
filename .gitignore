@@ -183,3 +183,5 @@ finetuningLLMs
 *.bin
 *.pickle
 *.sqlite*
+
+testingRetriever.ipynb
