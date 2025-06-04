@@ -49,6 +49,8 @@ from langgraph.graph import END, StateGraph, START
 from langgraph.graph.message import add_messages
 from langchain_ollama import ChatOllama
 import re
+from keywords import KeywordExtractor
+
 # Load environment variables from .env file
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -143,6 +145,7 @@ class RAGAgent:
         self._load_vector_db()
         self._setup_retriever()
         self._build_workflow()
+        self.keywordExtractor = KeywordExtractor()  # Placeholder for keyword extractor if needed
 
     def _load_vector_db(self):
         """Load vector database from disk."""
@@ -167,7 +170,7 @@ class RAGAgent:
             search_kwargs={
                 "k": self.numOfContext,
                 "fetch_k": 20,
-                "lambda_mult": 0
+                "lambda_mult": 0.5
             }
         )
 
@@ -209,7 +212,12 @@ class RAGAgent:
 
     def _retrieve(self, state):
         query = state["messages"][0].content
-        docs = self.logging_retriever._get_relevant_documents(query)
+        keywords = self.keywordExtractor.extract_keywords(query)
+        extractionKeyword = ""
+        for key, value in keywords.items():
+            extractionKeyword += f"{key} "
+        print("Extracted Keywords:", extractionKeyword)
+        docs = self.logging_retriever._get_relevant_documents(extractionKeyword)
         combined_text = "\n\n".join(doc.page_content for doc in docs)
         return {"messages": [AIMessage(content=combined_text)]}
 
