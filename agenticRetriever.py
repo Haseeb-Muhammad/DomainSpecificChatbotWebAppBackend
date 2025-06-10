@@ -56,15 +56,18 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Directory for persisting the vector database
-PERSIST_DIRECTORY = "VectorDBs/bge-small-en_AI_books"
+PERSIST_DIRECTORY = "VectorDBs/bge-large-en_AI-books"
 finalContext = []
 
 MODEL_NAMES = {
-    "grade_documents" : "llama3.2:1b",
-    "rewrite" : "llama3.2:1b",
-    "generate" : "llama3.2:1b",
+    "grade_documents" : "qwen2.5:14b",
+    "rewrite" : "qwen2.5:14b",
+    "generate" : "qwen2.5:14b",
 
 }
+
+EMBEDDING_MODEL = "BAAI/bge-large-en"
+
 
 class AgentState(TypedDict):
     """
@@ -98,6 +101,7 @@ class LoggingRetriever(BaseRetriever):
         Returns:
             List of unique and relevant documents
         """
+        # self.seen_hashes.clear()
         docs = self.base_retriever._get_relevant_documents(query, run_manager=run_manager)
         unique_docs = []
         docs_with_metadata = []
@@ -140,7 +144,7 @@ class RAGAgent:
         self.numOfContext = numOfContext
         self.context = []
         self.context_failure = 0 
-        self.embeddingModel = "BAAI/bge-small-en"
+        self.embeddingModel = EMBEDDING_MODEL
 
         self._load_vector_db()
         self._setup_retriever()
@@ -170,7 +174,7 @@ class RAGAgent:
             search_kwargs={
                 "k": self.numOfContext,
                 "fetch_k": 20,
-                "lambda_mult": 0.5
+                "lambda_mult": 0
             }
         )
 
@@ -380,6 +384,7 @@ class RAGAgent:
 
         result = None
         self.context_failure = 0
+        self.logging_retriever.seen_hashes.clear()
 
         for output in self.graph.stream(inputs):
             for key, value in output.items():

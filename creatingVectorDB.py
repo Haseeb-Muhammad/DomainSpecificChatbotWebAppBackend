@@ -17,8 +17,8 @@ class VectorDatabaseManager:
     A comprehensive class for managing vector databases with PDF documents
     """
     
-    def __init__(self, documents_directory, model_name="BAAI/bge-small-en", 
-                 collection_name="rag-chroma", chunk_size=1500, chunk_overlap=200):
+    def __init__(self, documents_directory, model_name="BAAI/bge-large-en", 
+                 collection_name="rag-chroma", chunk_size=750, chunk_overlap=100):
         """
         Initialize the Vector Database Manager
         
@@ -172,13 +172,14 @@ class VectorDatabaseManager:
             print(f"Could not retrieve existing PDF names: {e}")
             return set()
     
-    def create_or_update_database(self, new_pdfs_only=True, pdf_limit=None):
+    def create_or_update_database(self, new_pdfs_only=True, pdf_limit=None, batch_size=100):
         """
-        Create new vector DB or append to existing one
+        Create new vector DB or append to existing one with batch processing
         
         Args:
             new_pdfs_only (bool): If True and DB exists, only process new PDFs not already in DB
             pdf_limit (int): Limit number of PDFs to process (None for all)
+            batch_size (int): Number of documents to process in each batch
         
         Returns:
             Chroma: The vectorstore instance
@@ -213,13 +214,31 @@ class VectorDatabaseManager:
                 print("No new documents to add.")
                 return self._vectorstore
             
-            # Process and add new documents
+            # Process documents in batches
             doc_splits = self._process_documents(new_docs)
             
             if doc_splits:
-                self._vectorstore.add_documents(doc_splits)
-                self._vectorstore.persist()
-                print(f"Added {len(doc_splits)} new document chunks to existing database")
+                # Add documents in batches to avoid memory issues
+                total_added = 0
+                for i in range(0, len(doc_splits), batch_size):
+                    batch = doc_splits[i:i + batch_size]
+                    try:
+                        self._vectorstore.add_documents(batch)
+                        total_added += len(batch)
+                        print(f"Added batch {i//batch_size + 1}: {len(batch)} documents (Total: {total_added}/{len(doc_splits)})")
+                    except Exception as e:
+                        print(f"Error adding batch {i//batch_size + 1}: {e}")
+                        # Log the problematic documents
+                        for j, doc in enumerate(batch):
+                            print(f"  Batch doc {j}: {type(doc.page_content)} - {repr(doc.page_content[:100])}")
+                        continue
+                
+                # Persist after all batches
+                try:
+                    self._vectorstore.persist()
+                    print(f"Successfully added {total_added} document chunks to existing database")
+                except Exception as e:
+                    print(f"Error persisting database: {e}")
             
         else:
             print("Creating new vector database...")
@@ -238,49 +257,161 @@ class VectorDatabaseManager:
                 print("No valid document splits created.")
                 return None
             
-            # Create new vector store
-            self._vectorstore = Chroma.from_documents(
-                documents=doc_splits,
-                collection_name=self.collection_name,
-                embedding=self.embedding_function,
-                persist_directory=self.persist_directory
-            )
-            
-            # Persist to disk
-            self._vectorstore.persist()
-            print(f"Vector database created and stored in {self.persist_directory}")
+            try:
+                # Create new vector store with batch processing for large datasets
+                if len(doc_splits) > batch_size:
+                    print(f"Creating database with {len(doc_splits)} documents in batches of {batch_size}")
+                    
+                    # Create initial vectorstore with first batch
+                    first_batch = doc_splits[:batch_size]
+                    self._vectorstore = Chroma.from_documents(
+                        documents=first_batch,
+                        collection_name=self.collection_name,
+                        embedding=self.embedding_function,
+                        persist_directory=self.persist_directory
+                    )
+                    
+                    # Add remaining documents in batches
+                    for i in range(batch_size, len(doc_splits), batch_size):
+                        batch = doc_splits[i:i + batch_size]
+                        try:
+                            self._vectorstore.add_documents(batch)
+                            print(f"Added batch {i//batch_size + 1}: {len(batch)} documents")
+                        except Exception as e:
+                            print(f"Error adding batch {i//batch_size + 1}: {e}")
+                            continue
+                else:
+                    # Create vectorstore normally for smaller datasets
+                    self._vectorstore = Chroma.from_documents(
+                        documents=doc_splits,
+                        collection_name=self.collection_name,
+                        embedding=self.embedding_function,
+                        persist_directory=self.persist_directory
+                    )
+                
+                # Persist to disk
+                self._vectorstore.persist()
+                print(f"Vector database created and stored in {self.persist_directory}")
+                
+            except Exception as e:
+                print(f"Error creating vector database: {e}")
+                return None
         
         return self._vectorstore
     
     def _process_documents(self, documents):
         """
-        Internal method to process and validate documents
+        Internal method to process and validate documents with robust text cleaning
         
         Args:
             documents (list): List of documents to process
         
         Returns:
-            list: List of processed document splits
+            list: List of processed and validated document splits
         """
+        if not documents:
+            print("No documents provided to process")
+            return []
+        
         # Split documents
-        doc_splits = self.text_splitter.split_documents(documents)
+        try:
+            doc_splits = self.text_splitter.split_documents(documents)
+            print(f"Split {len(documents)} documents into {len(doc_splits)} chunks")
+        except Exception as e:
+            print(f"Error during document splitting: {e}")
+            return []
         
-        # Clean and validate documents
-        doc_splits = [doc for doc in doc_splits if isinstance(doc.page_content, str)]
-        for doc in doc_splits:
-            doc.page_content = str(doc.page_content)
+        # Robust cleaning and validation
+        valid_doc_splits = []
+        invalid_count = 0
         
-        # Validate document content
-        invalid_docs = []
         for i, doc in enumerate(doc_splits):
-            if not isinstance(doc.page_content, str):
-                invalid_docs.append(i)
-                print(f"[Invalid] Index: {i}, Type: {type(doc.page_content)}, Content: {repr(doc.page_content)[:200]}")
+            try:
+                # Check if page_content exists and is not None
+                if not hasattr(doc, 'page_content') or doc.page_content is None:
+                    print(f"Document {i}: Missing or None page_content")
+                    invalid_count += 1
+                    continue
+                
+                # Convert to string and clean
+                content = str(doc.page_content).strip()
+                
+                # Check for empty or whitespace-only content
+                if not content or len(content) == 0:
+                    print(f"Document {i}: Empty content after cleaning")
+                    invalid_count += 1
+                    continue
+                
+                # Check for minimum content length (avoid very short fragments)
+                if len(content) < 10:  # Minimum 10 characters
+                    print(f"Document {i}: Content too short ({len(content)} chars)")
+                    invalid_count += 1
+                    continue
+                
+                # Check for valid UTF-8 encoding
+                try:
+                    content.encode('utf-8')
+                except UnicodeEncodeError as e:
+                    print(f"Document {i}: Unicode encoding error - {e}")
+                    invalid_count += 1
+                    continue
+                
+                # Additional check: ensure content is printable/readable
+                # Remove or replace problematic characters
+                import re
+                # Keep only printable characters, newlines, and tabs
+                cleaned_content = re.sub(r'[^\x20-\x7E\n\r\t]', ' ', content)
+                cleaned_content = re.sub(r'\s+', ' ', cleaned_content).strip()
+                
+                if not cleaned_content or len(cleaned_content) < 10:
+                    print(f"Document {i}: Content invalid after character cleaning")
+                    invalid_count += 1
+                    continue
+                
+                # Update the document with cleaned content
+                doc.page_content = cleaned_content
+                
+                # Validate metadata exists
+                if not hasattr(doc, 'metadata') or doc.metadata is None:
+                    doc.metadata = {}
+                
+                # Ensure metadata is a dictionary
+                if not isinstance(doc.metadata, dict):
+                    doc.metadata = {}
+                
+                # Add chunk information to metadata
+                doc.metadata['chunk_index'] = len(valid_doc_splits)
+                doc.metadata['original_length'] = len(content)
+                doc.metadata['cleaned_length'] = len(cleaned_content)
+                
+                valid_doc_splits.append(doc)
+                
+            except Exception as e:
+                print(f"Document {i}: Unexpected error during processing - {e}")
+                invalid_count += 1
+                continue
         
-        if invalid_docs:
-            print(f"Found {len(invalid_docs)} invalid documents that will be skipped")
+        print(f"Document processing complete:")
+        print(f"  - Valid documents: {len(valid_doc_splits)}")
+        print(f"  - Invalid documents: {invalid_count}")
+        print(f"  - Success rate: {len(valid_doc_splits)/(len(doc_splits)) * 100:.1f}%")
         
-        return doc_splits
+        if len(valid_doc_splits) == 0:
+            print("WARNING: No valid documents found after processing!")
+            return []
+        
+        # Final validation: test a sample document with the embedding function
+        try:
+            print("Testing embedding function with sample document...")
+            sample_text = valid_doc_splits[0].page_content
+            test_embedding = self.embedding_function.embed_query(sample_text[:100])  # Test with first 100 chars
+            print("Embedding test successful")
+        except Exception as e:
+            print(f"WARNING: Embedding test failed - {e}")
+            print("This might indicate compatibility issues with the embedding model")
+            return []
+        
+        return valid_doc_splits
     
     def delete_documents_by_pdf_name(self, pdf_name):
         """
@@ -440,10 +571,10 @@ def main():
     """Example usage of the VectorDatabaseManager class"""
     
     # Initialize the manager
-    documents_dir = "/home/haseeb/Desktop/NCAI/Datasets/AI_books"
+    documents_dir = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
     db_manager = VectorDatabaseManager(
         documents_directory=documents_dir,
-        model_name="BAAI/bge-small-en",
+        model_name="BAAI/bge-large-en",
         collection_name="rag-chroma"
     )
     
@@ -452,7 +583,7 @@ def main():
     
     # Create or update database
     print("\n=== Creating/Updating Vector Database ===")
-    vectorstore = db_manager.create_or_update_database(new_pdfs_only=True, pdf_limit=2)
+    vectorstore = db_manager.create_or_update_database(new_pdfs_only=True)
     
     if vectorstore:
         # Get database statistics
