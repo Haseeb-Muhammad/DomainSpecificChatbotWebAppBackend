@@ -571,6 +571,7 @@ def main():
     """Example usage of the VectorDatabaseManager class"""
     
     # Initialize the manager
+    # documents_dir = r"C:\Users\user\Documents\chatbotai"
     documents_dir = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
     db_manager = VectorDatabaseManager(
         documents_directory=documents_dir,

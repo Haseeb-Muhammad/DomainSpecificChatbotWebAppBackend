@@ -1,28 +1,37 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from agenticRetriever import RAGAgent
+# from agenticRetriever import RAGAgent
 import uvicorn
 import os
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import HTTPException
 import argparse
 from contextlib import asynccontextmanager
+from creatingVectorDB import VectorDatabaseManager 
+from fastapi import UploadFile, File
+import shutil
+import os
+from datetime import datetime
+
+documents_dir = r"C:\Users\user\Documents\chatbotai"
+db_manager = VectorDatabaseManager(documents_directory=documents_dir)
+
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     agent_cache = {
+#         "agent": RAGAgent(verbose=True, numOfContext=3),
+#         "numOfContext": 3,
+#     }
+#     app.agent_cache = agent_cache
+
+#     yield
+
+#     print("Closing the model")
+#     del agent_cache
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    agent_cache = {
-        "agent": RAGAgent(verbose=True, numOfContext=3),
-        "numOfContext": 3,
-    }
-    app.agent_cache = agent_cache
-
-    yield
-
-    print("Closing the model")
-    del agent_cache
-
-
-app = FastAPI(lifespan=lifespan)
+# app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,31 +44,31 @@ app.add_middleware(
 
 
 # Updated model to accept two inputs
-class Query(BaseModel):
-    question: str
-    numOfContext: int
+# class Query(BaseModel):
+#     question: str
+#     numOfContext: int
 
 
 
-def get_agent(numOfContext: int) -> RAGAgent:
-    # Reuse the agent if the context number hasn't changed
-    if app.agent_cache["numOfContext"] != numOfContext:
-        print(f"Changing Number of Context to ={numOfContext}")
-        app.agent_cache["agent"].numOfContext = numOfContext
-        app.agent_cache["agent"]._setup_retriever()
-        app.agent_cache["numOfContext"] = numOfContext
+# def get_agent(numOfContext: int) -> RAGAgent:
+#     # Reuse the agent if the context number hasn't changed
+#     if app.agent_cache["numOfContext"] != numOfContext:
+#         print(f"Changing Number of Context to ={numOfContext}")
+#         app.agent_cache["agent"].numOfContext = numOfContext
+#         app.agent_cache["agent"]._setup_retriever()
+#         app.agent_cache["numOfContext"] = numOfContext
 
-    return app.agent_cache["agent"]
+#     return app.agent_cache["agent"]
 
 
-@app.post("/ask")
-def ask_rag(query: Query):
-    rag_agent = get_agent(query.numOfContext)
-    try:
-        response, context = rag_agent(query.question)
-        return {"response": response, "context": context}
-    except Exception as e:
-        return {"error": str(e)}
+# @app.post("/ask")
+# def ask_rag(query: Query):
+#     rag_agent = get_agent(query.numOfContext)
+#     try:
+#         response, context = rag_agent(query.question)
+#         return {"response": response, "context": context}
+#     except Exception as e:
+#         return {"error": str(e)}
 
 
 @app.get("/")
@@ -67,6 +76,98 @@ def helloworld():
     return {
         "message" : "working"
     }
+
+@app.get("/pdfs")
+def list_pdfs():
+    pdfs = []
+    for filename in os.listdir(db_manager.documents_directory):
+        if filename.lower().endswith(".pdf"):
+            path = os.path.join(db_manager.documents_directory, filename)
+            size_bytes = round(os.path.getsize(path), 2)
+            upload_time = datetime.fromtimestamp(os.path.getmtime(path)).isoformat()
+            pdfs.append({
+                "filename": filename,
+                "size_bytes": size_bytes,
+                "upload_time": upload_time
+            })
+    return {"pdfs": pdfs}
+
+@app.post("/upload-pdf")
+def upload_pdf(file: UploadFile = File(...)):
+    # Only allow PDF uploads
+    if not file.filename.lower().endswith(".pdf"):
+        return {"error": "Only PDF files are allowed."}
+    
+    save_path = os.path.join(db_manager.documents_directory, file.filename)
+    
+    with open(save_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    return {"message": f"Uploaded {file.filename} successfully."}
+
+
+
+@app.delete("/delete-pdf/{filename}")
+def delete_pdf(filename: str):
+    if not filename.lower().endswith(".pdf"):
+        filename += ".pdf"
+    
+    file_path = os.path.join(db_manager.documents_directory, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="PDF file not found in directory.")
+
+    # Delete the PDF file
+    os.remove(file_path)
+
+    # Delete vectors from database
+    # try:
+    #     deleted_count = db_manager.delete_documents_by_pdf_name(filename)
+    # except Exception as e:
+    #     raise HTTPException(status_code=500, detail=f"Error deleting vectors: {str(e)}")
+
+    return {
+        "message": f"Deleted {filename} from directory.",
+        # "vectors_deleted": deleted_count
+    }
+
+
+@app.get("/database/pdfs")
+def list_pdfs():
+    return list(db_manager.list_pdf_names_in_database())
+
+@app.post("/database/update")
+def create_or_update(new_only: bool = True, limit: int = None):
+    print(f"create_or_update called with new_only={new_only}, limit={limit}")
+    db = db_manager.create_or_update_database(new_pdfs_only=new_only, pdf_limit=limit)
+    return db
+
+class SearchRequest(BaseModel):
+    query: str
+    k: int = 5
+
+@app.post("/search")
+def search_docs(body: SearchRequest):
+    results = db_manager.search_documents(body.query, k=body.k)
+    return {"results": [r.page_content for r in results]}
+
+
+@app.delete("/database/pdf/{pdf_name}")
+def delete_pdf(pdf_name: str):
+    count = db_manager.delete_documents_by_pdf_name(pdf_name)
+    return {"deleted": count}
+
+
+@app.get("/database/stats")
+def get_stats():
+    return db_manager.get_database_statistics()
+
+
+@app.delete("/database/reset")
+def reset_db():
+    success = db_manager.reset_database()
+    return {"reset": success}
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -78,4 +179,3 @@ if __name__ == "__main__":
         uvicorn.run("rag_api:app", host="0.0.0.0", port=8000, reload=True)
     else:
         uvicorn.run("rag_api:app", host="0.0.0.0", port=8000, workers=2)
-
