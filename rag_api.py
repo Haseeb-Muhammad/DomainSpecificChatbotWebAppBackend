@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-# from agenticRetriever import RAGAgent
+from agenticRetriever import RAGAgent
 import uvicorn
 import os
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,24 +13,24 @@ import shutil
 import os
 from datetime import datetime
 
-documents_dir = r"C:\Users\user\Documents\chatbotai"
+documents_dir = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
 db_manager = VectorDatabaseManager(documents_directory=documents_dir)
 
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     agent_cache = {
-#         "agent": RAGAgent(verbose=True, numOfContext=3),
-#         "numOfContext": 3,
-#     }
-#     app.agent_cache = agent_cache
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    agent_cache = {
+        "agent": RAGAgent(verbose=True, numOfContext=3),
+        "numOfContext": 3,
+    }
+    app.agent_cache = agent_cache
 
-#     yield
+    yield
 
-#     print("Closing the model")
-#     del agent_cache
+    print("Closing the model")
+    del agent_cache
 
 
-# app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan)
 app = FastAPI()
 
 app.add_middleware(
@@ -44,31 +44,31 @@ app.add_middleware(
 
 
 # Updated model to accept two inputs
-# class Query(BaseModel):
-#     question: str
-#     numOfContext: int
+class Query(BaseModel):
+    question: str
+    numOfContext: int
 
 
 
-# def get_agent(numOfContext: int) -> RAGAgent:
-#     # Reuse the agent if the context number hasn't changed
-#     if app.agent_cache["numOfContext"] != numOfContext:
-#         print(f"Changing Number of Context to ={numOfContext}")
-#         app.agent_cache["agent"].numOfContext = numOfContext
-#         app.agent_cache["agent"]._setup_retriever()
-#         app.agent_cache["numOfContext"] = numOfContext
+def get_agent(numOfContext: int) -> RAGAgent:
+    # Reuse the agent if the context number hasn't changed
+    if app.agent_cache["numOfContext"] != numOfContext:
+        print(f"Changing Number of Context to ={numOfContext}")
+        app.agent_cache["agent"].numOfContext = numOfContext
+        app.agent_cache["agent"]._setup_retriever()
+        app.agent_cache["numOfContext"] = numOfContext
 
-#     return app.agent_cache["agent"]
+    return app.agent_cache["agent"]
 
 
-# @app.post("/ask")
-# def ask_rag(query: Query):
-#     rag_agent = get_agent(query.numOfContext)
-#     try:
-#         response, context = rag_agent(query.question)
-#         return {"response": response, "context": context}
-#     except Exception as e:
-#         return {"error": str(e)}
+@app.post("/ask")
+def ask_rag(query: Query):
+    rag_agent = get_agent(query.numOfContext)
+    try:
+        response, context = rag_agent(query.question)
+        return {"response": response, "context": context}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/")
@@ -103,6 +103,8 @@ def upload_pdf(file: UploadFile = File(...)):
     with open(save_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
+    # db_manager.create_or_update_database()
+    
     return {"message": f"Uploaded {file.filename} successfully."}
 
 
@@ -121,14 +123,14 @@ def delete_pdf(filename: str):
     os.remove(file_path)
 
     # Delete vectors from database
-    # try:
-    #     deleted_count = db_manager.delete_documents_by_pdf_name(filename)
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=f"Error deleting vectors: {str(e)}")
+    try:
+        deleted_count = db_manager.delete_documents_by_pdf_name(filename)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting vectors: {str(e)}")
 
     return {
         "message": f"Deleted {filename} from directory.",
-        # "vectors_deleted": deleted_count
+        "vectors_deleted": deleted_count
     }
 
 
