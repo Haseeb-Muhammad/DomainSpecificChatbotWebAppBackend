@@ -12,6 +12,16 @@ from fastapi import UploadFile, File
 import shutil
 import os
 from datetime import datetime
+from fastapi import FastAPI, BackgroundTasks
+from threading import Lock
+import time
+
+
+job_status = {
+    "state": "idle",  # or: processing, success, failed
+    "message": "No processing job running.",
+}
+job_lock = Lock()
 
 documents_dir = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
 db_manager = VectorDatabaseManager(documents_directory=documents_dir)
@@ -31,7 +41,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app = FastAPI()
+# app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -138,11 +148,36 @@ def delete_pdf(filename: str):
 def list_pdfs():
     return list(db_manager.list_pdf_names_in_database())
 
+def run_job(new_only: bool, limit: int):
+    try:
+        db_manager.create_or_update_database(new_pdfs_only=new_only, pdf_limit=limit)
+        # time.sleep(10)
+        job_status["state"] = "success"
+        job_status["message"] = "Processing has been completed successfully."
+    except Exception as e:
+        job_status["state"] = "failed"
+        job_status["message"] = str(e)
+
 @app.post("/database/update")
-def create_or_update(new_only: bool = True, limit: int = None):
-    print(f"create_or_update called with new_only={new_only}, limit={limit}")
-    db = db_manager.create_or_update_database(new_pdfs_only=new_only, pdf_limit=limit)
-    return db
+def create_or_update(new_only: bool = True, limit: int = None, background_tasks: BackgroundTasks = None):
+    if job_status["state"] == "processing":
+        return {"state": "processing", "message": "Previous job still running."}
+
+    job_status["state"] = "processing"
+    job_status["message"] = "Processing job running."
+    background_tasks.add_task(run_job, new_only, limit)
+    return {"state": "queued", "message": "Processing started in background."}
+
+@app.get("/database/job-status")
+def get_status():
+    return job_status
+
+# KEEP IT COMMENTED OUT 
+# @app.post("/database/update")
+# def create_or_update(new_only: bool = True, limit: int = None):
+#     print(f"create_or_update called with new_only={new_only}, limit={limit}")
+#     db = db_manager.create_or_update_database(new_pdfs_only=new_only, pdf_limit=limit)
+#     return db
 
 class SearchRequest(BaseModel):
     query: str
