@@ -572,10 +572,10 @@ def main():
     
     # Initialize the manager
     # documents_dir = r"C:\Users\user\Documents\chatbotai"
-    documents_dir = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
+    documents_dir = "C:\\Users\\hasee\\Desktop\\NCAI\\Codes\\DomainSpecificChatbotWebAppBackend\\3books"
     db_manager = VectorDatabaseManager(
         documents_directory=documents_dir,
-        model_name="BAAI/bge-large-en",
+        model_name="BAAI/bge-small-en",
         collection_name="rag-chroma"
     )
     
@@ -595,9 +595,9 @@ def main():
         print(f"PDF names: {stats.get('pdf_names', [])}")
         
         # Search example
-        print("\n=== Search Example ===")
-        search_results = db_manager.search_documents("artificial intelligence", k=3)
-        print(f"Found {len(search_results)} search results")
+        # print("\n=== Search Example ===")
+        # search_results = db_manager.search_documents("artificial intelligence", k=3)
+        # print(f"Found {len(search_results)} search results")
         
         # List PDFs in database
         print("\n=== PDFs in Database ===")
@@ -605,18 +605,18 @@ def main():
         print(f"PDFs: {list(pdf_names)}")
         
         # Example: Delete documents from a specific PDF
-        if pdf_names:
-            print("\n=== Delete Example ===")
-            first_pdf = list(pdf_names)[0]
-            print(f"Deleting documents from: {first_pdf}")
-            deleted_count = db_manager.delete_documents_by_pdf_name(first_pdf)
-            print(f"Deleted {deleted_count} documents")
+        # if pdf_names:
+        #     print("\n=== Delete Example ===")
+        #     first_pdf = list(pdf_names)[0]
+        #     print(f"Deleting documents from: {first_pdf}")
+        #     deleted_count = db_manager.delete_documents_by_pdf_name(first_pdf)
+        #     print(f"Deleted {deleted_count} documents")
             
-            # Show updated stats
-            print("\n=== Updated Statistics ===")
-            updated_stats = db_manager.get_database_statistics()
-            print(f"Total documents: {updated_stats.get('total_documents', 0)}")
-            print(f"Number of PDFs: {updated_stats.get('pdf_count', 0)}")
+        #     # Show updated stats
+        #     print("\n=== Updated Statistics ===")
+        #     updated_stats = db_manager.get_database_statistics()
+        #     print(f"Total documents: {updated_stats.get('total_documents', 0)}")
+        #     print(f"Number of PDFs: {updated_stats.get('pdf_count', 0)}")
 
 
 if __name__ == "__main__":

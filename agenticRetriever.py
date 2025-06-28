@@ -50,23 +50,24 @@ from langgraph.graph.message import add_messages
 from langchain_ollama import ChatOllama
 import re
 from keywords import KeywordExtractor
+from creatingVectorDB import VectorDatabaseManager
 
 # Load environment variables from .env file
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Directory for persisting the vector database
-PERSIST_DIRECTORY = "VectorDBs/bge-large-en_AI-books"
+PERSIST_DIRECTORY = "C:\\Users\\hasee\\Desktop\\NCAI\\Codes\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\VectorDBs"
 finalContext = []
 
 MODEL_NAMES = {
-    "grade_documents" : "qwen2.5:14b",
-    "rewrite" : "qwen2.5:14b",
-    "generate" : "qwen2.5:14b",
+    "grade_documents" : "qwen2.5:3b",
+    "rewrite" : "qwen2.5:3b",
+    "generate" : "qwen2.5:3b",
 
 }
 
-EMBEDDING_MODEL = "BAAI/bge-large-en"
+EMBEDDING_MODEL = "BAAI/bge-small-en"
 
 
 class AgentState(TypedDict):
@@ -102,7 +103,9 @@ class LoggingRetriever(BaseRetriever):
             List of unique and relevant documents
         """
         # self.seen_hashes.clear()
+        print("line 105")
         docs = self.base_retriever._get_relevant_documents(query, run_manager=run_manager)
+        print(f"docs at line 106 {docs=}")
         unique_docs = []
         docs_with_metadata = []
         for doc in docs:
@@ -157,7 +160,8 @@ class RAGAgent:
             print(f"Loading vector database from {PERSIST_DIRECTORY}")
         
         embedding_function = HuggingFaceEmbeddings(model_name=self.embeddingModel)
-
+        print(f"{embedding_function=}")
+        print(f"{PERSIST_DIRECTORY=}")
         self.vectorstore = Chroma(
             collection_name="rag-chroma",
             embedding_function=embedding_function,
@@ -174,19 +178,13 @@ class RAGAgent:
             search_kwargs={
                 "k": self.numOfContext,
                 "fetch_k": 20,
-                "lambda_mult": 0
+                "lambda_mult": 0.5
             }
         )
 
         self.logging_retriever = LoggingRetriever(base_retriever=retriever)
 
-        # self.retriever_tool = create_retriever_tool(
-        #     self.logging_retriever,
-        #     "retrieve_relevant_section",
-        #     "Search and return information from the documents"
-        # )
-
-        # self.tools = [self.retriever_tool]
+        self.vectorDBManager = VectorDatabaseManager(documents_directory="C:\\Users\\hasee\\Desktop\\NCAI\\Codes\\DomainSpecificChatbotWebAppBackend\\3books", model_name=EMBEDDING_MODEL, collection_name="rag-chroma")
 
     def _build_workflow(self):
         """Build the LangGraph workflow for query handling."""
@@ -217,16 +215,21 @@ class RAGAgent:
     def _retrieve(self, state):
         query = state["messages"][0].content
         keywords = self.keywordExtractor.extract_keywords(query)
-        extractionKeyword = ""
-        docs=[]
+
+        keyword_extractions = {}
+        combined_text = ""
+
         for key, value in keywords.items():
-            extractionKeyword += f"{key} "
-            print(f"Extracted keyword: {key}")
-            docs.append(self.logging_retriever._get_relevant_documents(extractionKeyword))
-        print("Extracted Keywords:", extractionKeyword)
-        
-        # docs = self.logging_retriever._get_relevant_documents(extractionKeyword)
-        combined_text = "\n\n".join(doc.page_content for doc in docs)
+            print(f"{key=}")
+            # docs = self.logging_retriever._get_relevant_documents(key)
+            docs = self.vectorDBManager.search_documents(key, k=self.numOfContext)
+            print(f"{docs=}")
+            keyword_extractions[key] = docs
+            combined_text += "\n\n".join(doc.page_content for doc in docs)
+
+        print("Extracted Keywords:", keywords.keys())
+        print(f"{combined_text=}")
+
         return {"messages": [AIMessage(content=combined_text)]}
 
 
@@ -412,6 +415,6 @@ class RAGAgent:
 # Example usage
 if __name__ == "__main__":
     rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("How is feature importance evaluated?")
+    response, context = rag_agent("What is an RNN?")
     print("\nFinal Response:\n", response)
     print("Final Context:", context)
