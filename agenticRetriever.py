@@ -218,10 +218,14 @@ class RAGAgent:
         query = state["messages"][0].content
         keywords = self.keywordExtractor.extract_keywords(query)
         extractionKeyword = ""
+        docs=[]
         for key, value in keywords.items():
             extractionKeyword += f"{key} "
+            print(f"Extracted keyword: {key}")
+            docs.append(self.logging_retriever._get_relevant_documents(extractionKeyword))
         print("Extracted Keywords:", extractionKeyword)
-        docs = self.logging_retriever._get_relevant_documents(extractionKeyword)
+        
+        # docs = self.logging_retriever._get_relevant_documents(extractionKeyword)
         combined_text = "\n\n".join(doc.page_content for doc in docs)
         return {"messages": [AIMessage(content=combined_text)]}
 
