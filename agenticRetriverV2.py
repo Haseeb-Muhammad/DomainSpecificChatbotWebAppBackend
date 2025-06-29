@@ -119,20 +119,53 @@ class RAGAgent:
         keyword_extractions = {}
         combined_text = ""
         self.context = []
+
+        #Extract keywords with importance greater than 0.7    
+        filtered_keywords = {}
         for key, value in keywords.items():
+            if value >0.7:
+                filtered_keywords[key] = value
+            print(f"{key}: {value}")
+        
+        if len(filtered_keywords) ==0:
+            docs = self.vectorDBManager.search_documents(query=query, k=self.numOfContext)
+            print("No keywords eligible, using query directly")
+            
+            combined_text = ""
+            for doc in docs:
+                source = os.path.basename(doc.metadata.get('source', 'unknown'))
+                page = doc.metadata.get('page', 'unknown')
+                self.context.append({"keyword":"","doc": doc, "source": source, "page": page})
+            
+            combined_text += "\n\n".join(doc.page_content for doc in docs)
+            return {"messages": [AIMessage(content=combined_text)]}
+
+
+        remainder = self.numOfContext % len(filtered_keywords)
+        div = self.numOfContext // len(filtered_keywords)
+
+
+        i=0
+        for  key, value in filtered_keywords.items():
             print(f"{key=}")
-            # docs = self.logging_retriever._get_relevant_documents(key)
+            print(f"{value=}")
+            # docs = self.logging_retriever._get_relevant_documents(key) 
             docs = self.vectorDBManager.search_documents(key, k=self.numOfContext)
-            print(f"{docs=}")
+            # print(f"{docs=}")
             keyword_extractions[key] = docs
             combined_text += "\n\n".join(doc.page_content for doc in docs)
-            for doc in docs:
+            if i <remainder:
+                j=div+1
+            else:
+                j=div
+            i+=1
+            for doc in docs[:j]:
                 source = os.path.basename(doc.metadata.get('source', 'unknown'))
                 page = doc.metadata.get('page', 'unknown')
                 self.context.append({"keyword":key,"doc": doc, "source": source, "page": page})
             
-        print("Extracted Keywords:", keywords.keys())
-        print(f"{combined_text=}")
+        # print("Extracted Keywords:", keywords.keys())
+        # print(f"{combined_text=}")
 
         return {"messages": [AIMessage(content=combined_text)]}
 
@@ -248,7 +281,7 @@ class RAGAgent:
         
         if self.context_failure >=2:
             # return {"messages": [AIMessage(content="This question is out of my scope.")]}
-            # self.context = []
+            self.context = []
             return {"messages": ["This question is out of my scope."]}
 
         question = state["messages"][0].content
@@ -316,6 +349,6 @@ class RAGAgent:
 # Example usage
 if __name__ == "__main__":
     rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("What is an RNN?")
+    response, context = rag_agent("hwo does a pca works?")
     print("\nFinal Response:\n", response)
     print("Final Context:", context)
