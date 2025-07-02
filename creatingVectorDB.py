@@ -36,7 +36,8 @@ class VectorDatabaseManager:
         self.chunk_overlap = chunk_overlap
         
         # Generate persist directory based on model and document directory
-        self.persist_directory = f"VectorDBs/{os.path.basename(model_name)}_{os.path.basename(documents_directory)}"
+        # self.persist_directory = f"VectorDBs/{os.path.basename(model_name)}_{os.path.basename(documents_directory)}"
+        self.persist_directory = f"C:\\Users\\hasee\\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\VectorDBs\\bge-small-en_3books"
         
         # Initialize embedding function
         self.embedding_function = HuggingFaceEmbeddings(model_name=model_name)

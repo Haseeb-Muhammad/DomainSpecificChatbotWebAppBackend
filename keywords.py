@@ -60,7 +60,7 @@ class KeywordExtractor:
         """
         keyphrases = self.kw_model.extract_keywords(
             text,
-            keyphrase_ngram_range=(1, 3),
+            keyphrase_ngram_range=(1, 2),
             stop_words='english',
             use_mmr=True,
             diversity=mmr_diversity,

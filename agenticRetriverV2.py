@@ -9,7 +9,6 @@ warnings.filterwarnings("ignore")
 from dotenv import load_dotenv
 
 # OpenAI client and Pydantic base classes
-from openai import OpenAI
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
@@ -20,8 +19,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolCa
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.retrievers import BaseRetriever
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_huggingface import HuggingFaceEmbeddings
+
 from langchain.tools.retriever import create_retriever_tool
 
 # LangGraph components
@@ -34,11 +32,11 @@ from creatingVectorDB import VectorDatabaseManager
 
 
 # Load environment variables from .env file
-load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
+# load_dotenv()
+# openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Directory for persisting the vector database
-PERSIST_DIRECTORY = "C:\\Users\\hasee\\Desktop\\NCAI\\Codes\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\VectorDBs"
+PERSIST_DIRECTORY = "C:\\Users\\hasee\\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\VectorDBs"
 finalContext = []
 
 MODEL_NAMES = {
@@ -82,7 +80,7 @@ class RAGAgent:
 
         self._build_workflow()
         self.keywordExtractor = KeywordExtractor()  # Placeholder for keyword extractor if needed
-        self.vectorDBManager = VectorDatabaseManager(documents_directory="C:\\Users\\hasee\\Desktop\\NCAI\\Codes\\DomainSpecificChatbotWebAppBackend\\3books", model_name=EMBEDDING_MODEL, collection_name="rag-chroma")
+        self.vectorDBManager = VectorDatabaseManager(documents_directory="C:\\Users\\hasee\\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\3books", model_name=EMBEDDING_MODEL, collection_name="rag-chroma")
         print("Agent Loaded")
 
 
@@ -349,6 +347,6 @@ class RAGAgent:
 # Example usage
 if __name__ == "__main__":
     rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("hwo does a pca works?")
+    response, context = rag_agent("what is the difference between sigmoid and softmax?")
     print("\nFinal Response:\n", response)
     print("Final Context:", context)
