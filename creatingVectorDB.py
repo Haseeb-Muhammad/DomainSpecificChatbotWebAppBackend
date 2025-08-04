@@ -36,8 +36,8 @@ class VectorDatabaseManager:
         self.chunk_overlap = chunk_overlap
         
         # Generate persist directory based on model and document directory
-        # self.persist_directory = f"VectorDBs/{os.path.basename(model_name)}_{os.path.basename(documents_directory)}"
-        self.persist_directory = f"C:\\Users\\hasee\\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\VectorDBs\\bge-small-en_3books"
+        # self.persist_directory = os.path.join("VectorDBs", f"{os.path.basename(model_name)}_vectorDBBook")
+        self.persist_directory = f"C:\\Users\\hasee\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\VectorDBs\\bge-small-en_vectorDBBook"
         
         # Initialize embedding function
         self.embedding_function = HuggingFaceEmbeddings(model_name=model_name)
@@ -620,5 +620,5 @@ def main():
         #     print(f"Number of PDFs: {updated_stats.get('pdf_count', 0)}")
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+    # main()

@@ -29,7 +29,7 @@ from langchain_ollama import ChatOllama
 import re
 from keywords import KeywordExtractor
 from creatingVectorDB import VectorDatabaseManager
-
+import logging
 
 # Load environment variables from .env file
 # load_dotenv()
@@ -43,7 +43,6 @@ MODEL_NAMES = {
     "grade_documents" : "qwen2.5:3b",
     "rewrite" : "qwen2.5:3b",
     "generate" : "qwen2.5:3b",
-
 }
 
 EMBEDDING_MODEL = "BAAI/bge-small-en"
@@ -80,7 +79,7 @@ class RAGAgent:
 
         self._build_workflow()
         self.keywordExtractor = KeywordExtractor()  # Placeholder for keyword extractor if needed
-        self.vectorDBManager = VectorDatabaseManager(documents_directory="C:\\Users\\hasee\\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\vectorDBBook", model_name=EMBEDDING_MODEL, collection_name="rag-chroma")
+        self.vectorDBManager = VectorDatabaseManager(documents_directory=PERSIST_DIRECTORY, model_name=EMBEDDING_MODEL, collection_name="rag-chroma")
         print("Agent Loaded")
 
 
@@ -114,57 +113,28 @@ class RAGAgent:
         query = state["messages"][0].content
         keywords = self.keywordExtractor.extract_keywords(query)
 
-        keyword_extractions = {}
         combined_text = ""
         self.context = []
 
         #Extract keywords with importance greater than 0.7    
         filtered_keywords = {}
+        prompt = query
         for key, value in keywords.items():
-            if value >0.7:
+            if value >0.6:
                 filtered_keywords[key] = value
+                prompt = prompt + " " + key
             print(f"{key}: {value}")
+        logging.info(f"Keywords: {', '.join(str(v) for v in filtered_keywords.keys())}" )
+
         
-        if len(filtered_keywords) ==0:
-            docs = self.vectorDBManager.search_documents(query=query, k=self.numOfContext)
-            print("No keywords eligible, using query directly")
-            
-            combined_text = ""
-            for doc in docs:
-                source = os.path.basename(doc.metadata.get('source', 'unknown'))
-                page = doc.metadata.get('page', 'unknown')
-                self.context.append({"keyword":"","doc": doc, "source": source, "page": page})
-            
-            combined_text += "\n\n".join(doc.page_content for doc in docs)
-            return {"messages": [AIMessage(content=combined_text)]}
-
-
-        remainder = self.numOfContext % len(filtered_keywords)
-        div = self.numOfContext // len(filtered_keywords)
-
-
-        i=0
-        for  key, value in filtered_keywords.items():
-            print(f"{key=}")
-            print(f"{value=}")
-            # docs = self.logging_retriever._get_relevant_documents(key) 
-            docs = self.vectorDBManager.search_documents(key, k=self.numOfContext)
-            # print(f"{docs=}")
-            keyword_extractions[key] = docs
-            combined_text += "\n\n".join(doc.page_content for doc in docs)
-            if i <remainder:
-                j=div+1
-            else:
-                j=div
-            i+=1
-            for doc in docs[:j]:
-                source = os.path.basename(doc.metadata.get('source', 'unknown'))
-                page = doc.metadata.get('page', 'unknown')
-                self.context.append({"keyword":key,"doc": doc, "source": source, "page": page})
-            
-        # print("Extracted Keywords:", keywords.keys())
-        # print(f"{combined_text=}")
-
+        docs = self.vectorDBManager.search_documents(query=prompt, k=self.numOfContext)
+        combined_text = ""
+        for doc in docs:
+            source = os.path.basename(doc.metadata.get('source', 'unknown'))
+            page = doc.metadata.get('page', 'unknown')
+            self.context.append({"keyword":"","doc": doc, "source": source, "page": page})
+        
+        combined_text += "\n\n".join(doc.page_content for doc in docs)
         return {"messages": [AIMessage(content=combined_text)]}
 
 
@@ -260,7 +230,8 @@ class RAGAgent:
         )
         response = model.invoke(msg)
         response.content = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
-
+        logging.info("Retrieved context was unrelated. Rewriting the question")
+        logging.info(f"Rewritten question: {response.content}")
 
         return {"messages": [response]}
 
@@ -340,13 +311,58 @@ class RAGAgent:
                 "page_content": doc.page_content,
                 "keyword" : entry['keyword']
             })
+        
 
         return result["messages"][0], extracted_data
 
 
 # Example usage
 if __name__ == "__main__":
-    rag_agent = RAGAgent(verbose=True)
-    response, context = rag_agent("what is the difference between sigmoid and softmax?")
+    rag_agent = RAGAgent(verbose=False)
+
+    # Suppress specific loggers
+    logging.getLogger("chromadb").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+    logging.basicConfig(
+                    filename="C:\\Users\\hasee\\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\V3.log",
+                    encoding="utf-8",
+                    filemode="w",
+                    format="{asctime} - {levelname} - {message}",
+                    style="{",
+                    datefmt="%Y-%m-%d %H:%M",
+                    level=logging.INFO
+    )
+
+    questions = questions = [
+    "What is the PAC learning model and how does it define learnability?",
+    "How is the VC dimension used to analyze the capacity of a hypothesis class?",
+    "What is uniform convergence and why is it important in statistical learning theory?",
+    "How does the empirical risk minimization (ERM) principle relate to generalization?",
+    "What is the bias-variance tradeoff and how does it affect learning performance?",
+    "How does the Perceptron algorithm work and what are its convergence guarantees?",
+    "What is the definition and role of Rademacher complexity in learning theory?",
+    "How do support vector machines (SVMs) find the optimal separating hyperplane?",
+    "What is online learning and how does it differ from batch learning?",
+    "How do kernel methods enable learning in high-dimensional feature spaces?"
+]
+    for question in questions:
+
+        # question = "what are cost minimization clusterings?"
+        logging.info(f"{'-'*50} {'-'*50}")
+        logging.info(f"Question: {question}")
+        
+        response, context = rag_agent(question)
+        logging.info(f"Answer: {response}")
+        logging.info("")
+        
+            
+        for part_context in context:
+            logging.info(f"Book Title: {part_context['book_title']}")
+            logging.info(f"Context: {part_context['page_content']}")
+            logging.info("")
+
+
     print("\nFinal Response:\n", response)
     print("Final Context:", context)
