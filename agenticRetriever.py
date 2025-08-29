@@ -50,6 +50,7 @@ from langgraph.graph.message import add_messages
 from langchain_ollama import ChatOllama
 import re
 from keywords import KeywordExtractor
+from creatingVectorDB import VectorDatabaseManager
 
 # Load environment variables from .env file
 load_dotenv()
@@ -180,6 +181,9 @@ class RAGAgent:
 
         self.logging_retriever = LoggingRetriever(base_retriever=retriever)
 
+        self.vectorDBManager = VectorDatabaseManager(documents_directory="/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books", model_name=EMBEDDING_MODEL, collection_name="rag-chroma")
+
+
         # self.retriever_tool = create_retriever_tool(
         #     self.logging_retriever,
         #     "retrieve_relevant_section",
@@ -217,16 +221,26 @@ class RAGAgent:
     def _retrieve(self, state):
         query = state["messages"][0].content
         keywords = self.keywordExtractor.extract_keywords(query)
-        extractionKeyword = ""
-        docs=[]
+
+        keyword_extractions = {}
+        combined_text = ""
+        self.context = []
+
         for key, value in keywords.items():
-            extractionKeyword += f"{key} "
-            print(f"Extracted keyword: {key}")
-            docs.append(self.logging_retriever._get_relevant_documents(extractionKeyword))
-        print("Extracted Keywords:", extractionKeyword)
-        
-        # docs = self.logging_retriever._get_relevant_documents(extractionKeyword)
-        combined_text = "\n\n".join(doc.page_content for doc in docs)
+            print(f"{key=}")
+            # docs = self.logging_retriever._get_relevant_documents(key)
+            docs = self.vectorDBManager.search_documents(key, k=self.numOfContext)
+            print(f"{docs=}")
+            keyword_extractions[key] = docs
+            combined_text += "\n\n".join(doc.page_content for doc in docs)
+            for doc in docs:
+                source = os.path.basename(doc.metadata.get('source', 'unknown'))
+                page = doc.metadata.get('page', 'unknown')
+                self.context.append({"doc": doc, "source": source, "page": page})
+
+        print("Extracted Keywords:", keywords.keys())
+        print(f"{combined_text=}")
+
         return {"messages": [AIMessage(content=combined_text)]}
 
 
@@ -275,7 +289,7 @@ class RAGAgent:
 
         if score == "yes":
             global finalContext
-            self.context = finalContext
+            # self.context = finalContext
             if self.verbose:
                 print("---DECISION: DOCS RELEVANT---")
             return "generate"
@@ -398,6 +412,7 @@ class RAGAgent:
                 result = value
 
         extracted_data = []
+        print(f"{extracted_data=}")
         for entry in self.context:
             doc = entry.get("doc", {})
             extracted_data.append({

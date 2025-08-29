@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from agenticRetriever import RAGAgent
+from agenticRetrieverv4 import RAGAgent
 import uvicorn
 import os
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +29,7 @@ db_manager = VectorDatabaseManager(documents_directory=documents_dir)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     agent_cache = {
-        "agent": RAGAgent(verbose=True, numOfContext=3),
+        "agent": RAGAgent(db_menager=db_manager,verbose=True, numOfContext=3),
         "numOfContext": 3,
     }
     app.agent_cache = agent_cache
