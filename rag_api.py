@@ -53,6 +53,8 @@ app.add_middleware(
 
 
 
+
+
 # Updated model to accept two inputs
 class Query(BaseModel):
     question: str
@@ -65,7 +67,7 @@ def get_agent(numOfContext: int) -> RAGAgent:
     if app.agent_cache["numOfContext"] != numOfContext:
         print(f"Changing Number of Context to ={numOfContext}")
         app.agent_cache["agent"].numOfContext = numOfContext
-        app.agent_cache["agent"]._setup_retriever()
+        # app.agent_cache["agent"]._setup_retriever()
         app.agent_cache["numOfContext"] = numOfContext
 
     return app.agent_cache["agent"]
@@ -73,10 +75,13 @@ def get_agent(numOfContext: int) -> RAGAgent:
 
 @app.post("/ask")
 def ask_rag(query: Query):
+    start = time.time()
     rag_agent = get_agent(query.numOfContext)
     try:
         response, context = rag_agent(query.question)
-        return {"response": response, "context": context}
+        end = time.time()
+        print(f"That query took {end-start} seconds")
+        return {"response": str(response), "context": context}
     except Exception as e:
         return {"error": str(e)}
 

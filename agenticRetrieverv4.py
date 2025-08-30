@@ -180,7 +180,8 @@ class RAGAgent:
         if scored_result.is_ml_domain == "yes":
             return {"messages": state["messages"], "rewrite_count": 0}
         else:
-            return {"messages": [AIMessage(content="The question is not of the domain of machine learning")], "rewrite_count": 0}
+            # return {"messages": [AIMessage(content="The question is not of the domain of machine learning")], "rewrite_count": 0}
+            return {"messages": ["The question is not of the domain of machine learning"], "rewrite_count": 0}
 
     def _route_after_domain_check(self, state) -> Literal["retrieve", "end"]:
         """Route based on domain check result."""
@@ -459,7 +460,9 @@ class RAGAgent:
         
         if self.context_failure >= 2 or rewrite_count >= self.max_rewrites:
             self.context = []
+            # return {"messages": [AIMessage(content="This question is out of my scope.")]}
             return {"messages": ["This question is out of my scope."]}
+        
 
         question = state["messages"][0].content
         docs = state["messages"][-1].content
@@ -518,6 +521,7 @@ class RAGAgent:
                 "keyword" : entry['keyword']
             })
         
+        # return {"messages": [AIMessage(content=result["messages"][0])]}, extracted_data
 
         return result["messages"][0], extracted_data
 
