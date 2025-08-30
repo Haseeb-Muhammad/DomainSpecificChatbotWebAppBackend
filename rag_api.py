@@ -16,6 +16,9 @@ from fastapi import FastAPI, BackgroundTasks
 from threading import Lock
 import time
 
+# Import configuration
+import config
+
 
 job_status = {
     "state": "idle",  # or: processing, success, failed
@@ -23,15 +26,25 @@ job_status = {
 }
 job_lock = Lock()
 
-documents_dir = "C:\\Users\\hasee\\Desktop\\NCAI\\DomainSpecificChatbotWebAppBackend\\test"
-vdb_dir = "VectorDBs"
-db_manager = VectorDatabaseManager(documents_directory=documents_dir, vdb_directory=vdb_dir)
+# Use configuration values
+documents_dir = config.DOCUMENTS_DIR
+vdb_dir = config.VDB_DIR
+db_manager = VectorDatabaseManager(
+    documents_directory=documents_dir, 
+    vdb_directory=vdb_dir,
+    model_name=config.EMBEDDING_MODEL,
+    collection_name=config.COLLECTION_NAME,
+    chunk_size=config.CHUNK_SIZE,
+    chunk_overlap=config.CHUNK_OVERLAP
+)
+db_manager.load_existing_database()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     agent_cache = {
-        "agent": RAGAgent(db_menager=db_manager,verbose=True, numOfContext=3),
-        "numOfContext": 3,
+        "agent": RAGAgent(db_menager=db_manager, verbose=config.VERBOSE, numOfContext=config.NUM_OF_CONTEXT),
+        "numOfContext": config.NUM_OF_CONTEXT,
     }
     app.agent_cache = agent_cache
 
@@ -45,7 +58,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -145,7 +158,7 @@ def list_pdfs():
 
 def run_job(new_only: bool, limit: int):
     try:
-        db_manager.create_or_update_database(new_pdfs_only=new_only, pdf_limit=limit)
+        db_manager.create_or_update_database(new_pdfs_only=new_only, pdf_limit=limit, batch_size=config.BATCH_SIZE)
         # time.sleep(10)
         job_status["state"] = "success"
         job_status["message"] = "Processing has been completed successfully."
@@ -203,11 +216,11 @@ def reset_db():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("reload", default=False, nargs="?")
+    parser.add_argument("--reload", default=False, nargs="?")
 
     args = parser.parse_args()
 
     if args.reload:
-        uvicorn.run("rag_api:app", host="0.0.0.0", port=8000, reload=True)
+        uvicorn.run("rag_api:app", host=config.API_HOST, port=config.API_PORT, reload=True)
     else:
-        uvicorn.run("rag_api:app", host="0.0.0.0", port=8000, workers=2)
+        uvicorn.run("rag_api:app", host=config.API_HOST, port=config.API_PORT, workers=2)

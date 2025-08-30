@@ -1,13 +1,19 @@
 import warnings
+import os
+import re
+import shutil
+
 warnings.filterwarnings("ignore")
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from dotenv import load_dotenv
-import os
 from openai import OpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
+
+# Import configuration
+import config
 
 load_dotenv()
 
@@ -17,8 +23,8 @@ class VectorDatabaseManager:
     A comprehensive class for managing vector databases with PDF documents
     """
     
-    def __init__(self, documents_directory, vdb_directory, model_name="BAAI/bge-large-en", 
-                 collection_name="rag-chroma", chunk_size=750, chunk_overlap=100):
+    def __init__(self, documents_directory, vdb_directory, model_name=None, 
+                 collection_name=None, chunk_size=None, chunk_overlap=None):
         """
         Initialize the Vector Database Manager
         
@@ -30,10 +36,10 @@ class VectorDatabaseManager:
             chunk_overlap (int): Overlap between chunks
         """
         self.documents_directory = documents_directory
-        self.model_name = model_name
-        self.collection_name = collection_name
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
+        self.model_name = model_name or config.EMBEDDING_MODEL
+        self.collection_name = collection_name or config.COLLECTION_NAME
+        self.chunk_size = chunk_size or config.CHUNK_SIZE
+        self.chunk_overlap = chunk_overlap or config.CHUNK_OVERLAP
         
         # Generate persist directory based on model and document directory
         self.persist_directory = os.path.join(vdb_directory,f"{os.path.basename(model_name)}_{os.path.basename(documents_directory)}")
@@ -72,14 +78,14 @@ class VectorDatabaseManager:
         Returns:
             Chroma: Loaded vectorstore instance
         """
-        vectorstore = Chroma(
+        self._vectorstore = Chroma(
             collection_name=self.collection_name,
             embedding_function=self.embedding_function,
             persist_directory=self.persist_directory
         )
         
         print(f"Loaded existing vector database from {self.persist_directory}")
-        return vectorstore
+        return self._vectorstore
     
     def load_pdfs_from_folder(self, limit=None, combine_pages=True):
         """
@@ -559,14 +565,14 @@ class VectorDatabaseManager:
 def main():
     """Example usage of the VectorDatabaseManager class"""
     
-    # Initialize the manager
-    # documents_dir = r"C:\Users\user\Documents\chatbotai"
-    documents_dir = "C:\\Users\\hasee\\Desktop\\NCAI\\DomainSpecificChatbotWebAppBackend\\test"
+    # Initialize the manager using config values
     db_manager = VectorDatabaseManager(
-        documents_directory=documents_dir,
-        vdb_directory="VectorDBs",
-        model_name="BAAI/bge-small-en",
-        collection_name="rag-chroma"
+        documents_directory=config.DOCUMENTS_DIR,
+        vdb_directory=config.VDB_DIR,
+        model_name=config.EMBEDDING_MODEL,
+        collection_name=config.COLLECTION_NAME,
+        chunk_size=config.CHUNK_SIZE,
+        chunk_overlap=config.CHUNK_OVERLAP
     )
     
     print("=== Vector Database Manager Info ===")

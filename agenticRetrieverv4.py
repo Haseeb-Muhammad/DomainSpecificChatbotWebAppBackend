@@ -1,12 +1,19 @@
 import os
 import warnings
 from typing import Annotated, Dict, List, Literal, Sequence, Any, Optional
+import warnings
+import os
+import re
+import logging
 
 # Suppress warning messages
 warnings.filterwarnings("ignore")
 
 # Load environment variables
 from dotenv import load_dotenv
+
+# Import configuration
+import config
 
 # OpenAI client and Pydantic base classes
 from pydantic import BaseModel, Field
@@ -35,20 +42,7 @@ import logging
 # load_dotenv()
 # openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Directory for persisting the vector database
-PERSIST_DIRECTORY = "C:\\Users\\hasee\\Desktop\\NCAI\\DomainSpecificChatbotWebAppBackend\\VectorDBs"
-
 finalContext = []
-
-MODEL_NAMES = {
-    "domain_check": "qwen2.5:3b",
-    "context_selection": "qwen2.5:3b",
-    "grade_documents" : "qwen2.5:3b",
-    "rewrite" : "qwen2.5:3b",
-    "generate" : "qwen2.5:3b",
-}
-
-EMBEDDING_MODEL = "BAAI/bge-small-en"
 
 class AgentState(TypedDict):
     """
@@ -76,12 +70,12 @@ class RAGAgent:
             numOfContext: Number of documents to retrieve for context
         """
         print("Agent Loading")
-        self.verbose = verbose
-        self.numOfContext = numOfContext
+        self.verbose = verbose if verbose is not None else config.VERBOSE
+        self.numOfContext = numOfContext if numOfContext is not None else config.NUM_OF_CONTEXT
         self.context = []
         self.context_failure = 0 
-        self.embeddingModel = EMBEDDING_MODEL
-        self.max_rewrites = 3
+        self.embeddingModel = config.EMBEDDING_MODEL
+        self.max_rewrites = config.MAX_REWRITES
 
         self._build_workflow()
         self.keywordExtractor = KeywordExtractor()  # Placeholder for keyword extractor if needed
@@ -153,8 +147,8 @@ class RAGAgent:
             is_ml_domain: str = Field(description="Domain relevance 'yes' or 'no'")
 
         model = ChatOllama(
-            model=MODEL_NAMES["domain_check"],
-            temperature=0
+            model=config.MODEL_NAMES["domain_check"],
+            temperature=config.TEMPERATURE_DOMAIN_CHECK
         )
         llm_with_tool = model.with_structured_output(DomainCheck)
 
@@ -214,20 +208,20 @@ class RAGAgent:
         combined_text = ""
         self.context = []
 
-        #Extract keywords with importance greater than 0.6    
+        #Extract keywords with importance greater than threshold    
         filtered_keywords = {}
         prompt = query
         for key, value in keywords.items():
-            if value > 0.6:
+            if value > config.KEYWORD_IMPORTANCE_THRESHOLD:
                 filtered_keywords[key] = value
                 prompt = prompt + " " + key
             print(f"{key}: {value}")
         logging.info(f"Keywords: {', '.join(str(v) for v in filtered_keywords.keys())}" )
 
-        # Hardcode to retrieve 10 contexts
-        docs = self.vectorDBManager.search_documents(query=prompt, k=10)
+        # Retrieve documents from vector DB
+        docs = self.vectorDBManager.search_documents(query=prompt, k=config.DEFAULT_RETRIEVAL_K)
         
-        # Store all 10 documents for context selection
+        # Store all retrieved documents for context selection
         for doc in docs:
             source = os.path.basename(doc.metadata.get('source', 'unknown'))
             page = doc.metadata.get('page', 'unknown')
@@ -238,7 +232,7 @@ class RAGAgent:
 
     def _context_selection(self, state):
         """
-        Select the top numOfContext documents from the retrieved 10 documents using LLM.
+        Select the top numOfContext documents from the retrieved documents using LLM.
 
         Args:
             state: Current state containing retrieved documents
@@ -253,14 +247,14 @@ class RAGAgent:
             selected_indices: List[int] = Field(description="List of indices of the most relevant documents")
 
         model = ChatOllama(
-            model=MODEL_NAMES["context_selection"],
-            temperature=0
+            model=config.MODEL_NAMES["context_selection"],
+            temperature=config.TEMPERATURE_CONTEXT_SELECTION
         )
         llm_with_tool = model.with_structured_output(ContextSelection)
 
         # Prepare documents with indices for selection
         docs_text = ""
-        for i in range(min(10, len(self.context))):
+        for i in range(min(config.DEFAULT_RETRIEVAL_K, len(self.context))):
             docs_text += f"Document {i}:\n{self.context[i]['doc'].page_content}\n\n"
 
         prompt = PromptTemplate(
@@ -298,7 +292,7 @@ class RAGAgent:
             selected_docs_content = []
             logging.info("Context election")
             logging.info(f"{scored_result=}")
-            for i in range(min(10, len(self.context))): 
+            for i in range(min(config.DEFAULT_RETRIEVAL_K, len(self.context))):   
                 logging.info(f"Document {i}:\n{self.context[i]['doc'].page_content}\n\n")
             logging.info(f"{'*'*10}")
             for idx in selected_indices:
@@ -340,8 +334,8 @@ class RAGAgent:
             binary_score: str = Field(description="Relevance score 'yes' or 'no'")
 
         model = ChatOllama(
-            model=MODEL_NAMES["grade_documents"],
-            temperature=1
+            model=config.MODEL_NAMES["grade_documents"],
+            temperature=config.TEMPERATURE_GRADE_DOCUMENTS
         )
         llm_with_tool = model.with_structured_output(Grade)
 
@@ -407,8 +401,8 @@ class RAGAgent:
         ]
 
         model = ChatOllama(
-            model=MODEL_NAMES["rewrite"],
-            temperature=0
+            model=config.MODEL_NAMES["rewrite"],
+            temperature=config.TEMPERATURE_REWRITE
         )
         response = model.invoke(msg)
         response.content = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
@@ -469,8 +463,8 @@ class RAGAgent:
 
         prompt = hub.pull("rlm/rag-prompt")
         llm = ChatOllama(
-            model=MODEL_NAMES["generate"],
-            temperature=0)
+            model=config.MODEL_NAMES["generate"],
+            temperature=config.TEMPERATURE_GENERATE)
 
         formatted_prompt = prompt.format(context=docs, question=question)
 
@@ -536,7 +530,7 @@ if __name__ == "__main__":
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     logging.basicConfig(
-                    filename="C:\\Users\\hasee\\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\V42.log",
+                    filename=config.LOG_FILE,
                     encoding="utf-8",
                     filemode="w",
                     format="{asctime} - {levelname} - {message}",
