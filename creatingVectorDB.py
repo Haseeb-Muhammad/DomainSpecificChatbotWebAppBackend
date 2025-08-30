@@ -17,7 +17,7 @@ class VectorDatabaseManager:
     A comprehensive class for managing vector databases with PDF documents
     """
     
-    def __init__(self, documents_directory, model_name="BAAI/bge-large-en", 
+    def __init__(self, documents_directory, vdb_directory, model_name="BAAI/bge-large-en", 
                  collection_name="rag-chroma", chunk_size=750, chunk_overlap=100):
         """
         Initialize the Vector Database Manager
@@ -36,7 +36,8 @@ class VectorDatabaseManager:
         self.chunk_overlap = chunk_overlap
         
         # Generate persist directory based on model and document directory
-        self.persist_directory = f"VectorDBs/{os.path.basename(model_name)}_{os.path.basename(documents_directory)}"
+        self.persist_directory = os.path.join(vdb_directory,f"{os.path.basename(model_name)}_{os.path.basename(documents_directory)}")
+        os.makedirs(self.persist_directory, exist_ok=True)
         
         # Initialize embedding function
         self.embedding_function = HuggingFaceEmbeddings(model_name=model_name)
@@ -54,18 +55,6 @@ class VectorDatabaseManager:
         print(f"Documents Directory: {self.documents_directory}")
         print(f"Persist Directory: {self.persist_directory}")
         print(f"Model: {self.model_name}")
-    
-    @property
-    def vectorstore(self):
-        """
-        Lazy loading property for vectorstore
-        """
-        if self._vectorstore is None:
-            if self.check_database_exists():
-                self._vectorstore = self.load_existing_database()
-            else:
-                print("No existing database found. Use create_or_update_database() to create one.")
-        return self._vectorstore
     
     def check_database_exists(self):
         """
@@ -153,7 +142,7 @@ class VectorDatabaseManager:
             return set()
         
         try:
-            vectorstore = self.vectorstore
+            vectorstore = self._vectorstore
             all_docs = vectorstore.get()
             
             if not all_docs or 'metadatas' not in all_docs:
@@ -427,7 +416,7 @@ class VectorDatabaseManager:
             print("No vector database found.")
             return 0
         
-        vectorstore = self.vectorstore
+        vectorstore = self._vectorstore
         
         try:
             # Get all documents
@@ -488,7 +477,7 @@ class VectorDatabaseManager:
             }
         
         try:
-            vectorstore = self.vectorstore
+            vectorstore = self._vectorstore
             all_docs = vectorstore.get()
             pdf_names = self.list_pdf_names_in_database()
             
@@ -526,7 +515,7 @@ class VectorDatabaseManager:
             return []
         
         try:
-            vectorstore = self.vectorstore
+            vectorstore = self._vectorstore
             results = vectorstore.similarity_search(query, k=k)
             return results
         except Exception as e:
@@ -572,10 +561,11 @@ def main():
     
     # Initialize the manager
     # documents_dir = r"C:\Users\user\Documents\chatbotai"
-    documents_dir = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
+    documents_dir = "C:\\Users\\hasee\\Desktop\\NCAI\\DomainSpecificChatbotWebAppBackend\\test"
     db_manager = VectorDatabaseManager(
         documents_directory=documents_dir,
-        model_name="BAAI/bge-large-en",
+        vdb_directory="VectorDBs",
+        model_name="BAAI/bge-small-en",
         collection_name="rag-chroma"
     )
     

@@ -36,19 +36,19 @@ import logging
 # openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Directory for persisting the vector database
-PERSIST_DIRECTORY = "/home/haseebmuhammad/Desktop/AITeacherChatbot/DomainSpecificChatbotWebApp/backend/VectorDBs"
-DOCUMENTS_DIRECTORY= "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks"
+PERSIST_DIRECTORY = "C:\\Users\\hasee\\Desktop\\NCAI\\DomainSpecificChatbotWebAppBackend\\VectorDBs"
+
 finalContext = []
 
 MODEL_NAMES = {
-    "domain_check": "qwen2.5:14b",
-    "context_selection": "qwen2.5:14b",
-    "grade_documents" : "qwen2.5:14b",
-    "rewrite" : "qwen2.5:14b",
-    "generate" : "qwen2.5:14b",
+    "domain_check": "qwen2.5:3b",
+    "context_selection": "qwen2.5:3b",
+    "grade_documents" : "qwen2.5:3b",
+    "rewrite" : "qwen2.5:3b",
+    "generate" : "qwen2.5:3b",
 }
 
-EMBEDDING_MODEL = "BAAI/bge-large-en"
+EMBEDDING_MODEL = "BAAI/bge-small-en"
 
 class AgentState(TypedDict):
     """

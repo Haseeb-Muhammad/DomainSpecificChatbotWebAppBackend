@@ -23,8 +23,9 @@ job_status = {
 }
 job_lock = Lock()
 
-documents_dir = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
-db_manager = VectorDatabaseManager(documents_directory=documents_dir)
+documents_dir = "C:\\Users\\hasee\\Desktop\\NCAI\\DomainSpecificChatbotWebAppBackend\\test"
+vdb_dir = "VectorDBs"
+db_manager = VectorDatabaseManager(documents_directory=documents_dir, vdb_directory=vdb_dir)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,7 +40,6 @@ async def lifespan(app: FastAPI):
     print("Closing the model")
     del agent_cache
 
-
 app = FastAPI(lifespan=lifespan)
 # app = FastAPI()
 
@@ -51,16 +51,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-
-
-
 # Updated model to accept two inputs
 class Query(BaseModel):
     question: str
     numOfContext: int
-
-
 
 def get_agent(numOfContext: int) -> RAGAgent:
     # Reuse the agent if the context number hasn't changed
@@ -71,7 +65,6 @@ def get_agent(numOfContext: int) -> RAGAgent:
         app.agent_cache["numOfContext"] = numOfContext
 
     return app.agent_cache["agent"]
-
 
 @app.post("/ask")
 def ask_rag(query: Query):
@@ -84,7 +77,6 @@ def ask_rag(query: Query):
         return {"response": str(response), "context": context}
     except Exception as e:
         return {"error": str(e)}
-
 
 @app.get("/")
 def helloworld():
@@ -121,8 +113,6 @@ def upload_pdf(file: UploadFile = File(...)):
     # db_manager.create_or_update_database()
     
     return {"message": f"Uploaded {file.filename} successfully."}
-
-
 
 @app.delete("/delete-pdf/{filename}")
 def delete_pdf(filename: str):
