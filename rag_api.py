@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from agenticRetriever import RAGAgent
+from agenticRetrieverv4 import RAGAgent
 import uvicorn
 import os
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +16,9 @@ from fastapi import FastAPI, BackgroundTasks
 from threading import Lock
 import time
 
+# Import configuration
+import config
+
 
 job_status = {
     "state": "idle",  # or: processing, success, failed
@@ -23,14 +26,25 @@ job_status = {
 }
 job_lock = Lock()
 
-documents_dir = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
-db_manager = VectorDatabaseManager(documents_directory=documents_dir)
+# Use configuration values
+documents_dir = config.DOCUMENTS_DIR
+vdb_dir = config.VDB_DIR
+db_manager = VectorDatabaseManager(
+    documents_directory=documents_dir, 
+    vdb_directory=vdb_dir,
+    model_name=config.EMBEDDING_MODEL,
+    collection_name=config.COLLECTION_NAME,
+    chunk_size=config.CHUNK_SIZE,
+    chunk_overlap=config.CHUNK_OVERLAP
+)
+db_manager.load_existing_database()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     agent_cache = {
-        "agent": RAGAgent(verbose=True, numOfContext=3),
-        "numOfContext": 3,
+        "agent": RAGAgent(db_menager=db_manager, verbose=config.VERBOSE, numOfContext=config.NUM_OF_CONTEXT),
+        "numOfContext": config.NUM_OF_CONTEXT,
     }
     app.agent_cache = agent_cache
 
@@ -39,47 +53,43 @@ async def lifespan(app: FastAPI):
     print("Closing the model")
     del agent_cache
 
-
 app = FastAPI(lifespan=lifespan)
 # app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
 
 # Updated model to accept two inputs
 class Query(BaseModel):
     question: str
     numOfContext: int
 
-
-
 def get_agent(numOfContext: int) -> RAGAgent:
     # Reuse the agent if the context number hasn't changed
     if app.agent_cache["numOfContext"] != numOfContext:
         print(f"Changing Number of Context to ={numOfContext}")
         app.agent_cache["agent"].numOfContext = numOfContext
-        app.agent_cache["agent"]._setup_retriever()
+        # app.agent_cache["agent"]._setup_retriever()
         app.agent_cache["numOfContext"] = numOfContext
 
     return app.agent_cache["agent"]
 
-
 @app.post("/ask")
 def ask_rag(query: Query):
+    start = time.time()
     rag_agent = get_agent(query.numOfContext)
     try:
         response, context = rag_agent(query.question)
-        return {"response": response, "context": context}
+        end = time.time()
+        print(f"That query took {end-start} seconds")
+        return {"response": str(response), "context": context}
     except Exception as e:
         return {"error": str(e)}
-
 
 @app.get("/")
 def helloworld():
@@ -117,8 +127,6 @@ def upload_pdf(file: UploadFile = File(...)):
     
     return {"message": f"Uploaded {file.filename} successfully."}
 
-
-
 @app.delete("/delete-pdf/{filename}")
 def delete_pdf(filename: str):
     if not filename.lower().endswith(".pdf"):
@@ -150,7 +158,7 @@ def list_pdfs():
 
 def run_job(new_only: bool, limit: int):
     try:
-        db_manager.create_or_update_database(new_pdfs_only=new_only, pdf_limit=limit)
+        db_manager.create_or_update_database(new_pdfs_only=new_only, pdf_limit=limit, batch_size=config.BATCH_SIZE)
         # time.sleep(10)
         job_status["state"] = "success"
         job_status["message"] = "Processing has been completed successfully."
@@ -208,11 +216,11 @@ def reset_db():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("reload", default=False, nargs="?")
+    parser.add_argument("--reload", default=True, nargs="?")
 
     args = parser.parse_args()
 
     if args.reload:
-        uvicorn.run("rag_api:app", host="0.0.0.0", port=8000, reload=True)
+        uvicorn.run("rag_api:app", host=config.API_HOST, port=config.API_PORT, reload=True)
     else:
-        uvicorn.run("rag_api:app", host="0.0.0.0", port=8000, workers=2)
+        uvicorn.run("rag_api:app", host=config.API_HOST, port=config.API_PORT, workers=2)
