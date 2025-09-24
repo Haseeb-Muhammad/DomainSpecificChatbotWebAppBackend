@@ -216,7 +216,7 @@ def reset_db():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--reload", default=False, nargs="?")
+    parser.add_argument("--reload", default=True, nargs="?")
 
     args = parser.parse_args()
 

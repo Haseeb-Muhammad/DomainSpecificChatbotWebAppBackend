@@ -1,8 +1,8 @@
 # config.py
 
 # Paths
-DOCUMENTS_DIR = "C:\\Users\\hasee\\Desktop\\NCAI\\DomainSpecificChatbotWebAppBackend\\test"
-VDB_DIR = "C:\\Users\\hasee\\Desktop\\NCAI\\DomainSpecificChatbotWebAppBackend\\VectorDBs"
+DOCUMENTS_DIR = "/home/haseebmuhammad/Desktop/AITeacherChatbot/CQADatasetFromBooks/AI-books"
+VDB_DIR = "/home/haseebmuhammad/Desktop/AITeacherChatbot/DomainSpecificChatbotWebApp/backend/VectorDBs"
 LOG_FILE = "C:\\Users\\hasee\\Desktop\\DomainSpecificChatbotWebAppBackend\\DomainSpecificChatbotWebAppBackend\\V42.log"
 
 # Vector DB
@@ -12,13 +12,13 @@ CHUNK_OVERLAP = 100
 
 # LLM and Embedding Models
 MODEL_NAMES = {
-    "domain_check": "qwen2.5:3b",
-    "context_selection": "qwen2.5:3b",
-    "grade_documents": "qwen2.5:3b",
-    "rewrite": "qwen2.5:3b",
-    "generate": "qwen2.5:3b",
+    "domain_check": "qwen2.5:14b",
+    "context_selection": "qwen2.5:14b",
+    "grade_documents": "qwen2.5:14b",
+    "rewrite": "qwen2.5:14b",
+    "generate": "qwen2.5:14b",
 }
-EMBEDDING_MODEL = "BAAI/bge-small-en"
+EMBEDDING_MODEL = "BAAI/bge-large-en"
 
 # RAG Agent
 NUM_OF_CONTEXT = 3
